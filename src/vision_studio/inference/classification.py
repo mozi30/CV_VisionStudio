@@ -91,7 +91,8 @@ class ClassificationInference(Inference):
 
         """
         inputs, targets = self.move_batch_to_device(batch)
-        output = model(inputs, targets=None)
+        logits = model(inputs)
+        output = model.postprocess(logits)
 
         preds = output["labels"].detach().cpu().numpy()
         labels = targets["label"].detach().cpu().numpy()

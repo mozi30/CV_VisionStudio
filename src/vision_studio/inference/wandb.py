@@ -114,24 +114,17 @@ class WandbInference(Inference):
         batch: Batch,
     ) -> dict[str, Any]:
         inputs, targets = self.move_batch_to_device(batch)
-        output = model(inputs, targets)
+        logits = model(inputs)
 
-        if isinstance(output, Tensor):
-            return {
-                "preds": output,
-                "targets": targets,
-                "metrics": {},
-            }
+        # Call postprocess if the model has it
+        if hasattr(model, 'postprocess'):
+            output = model.postprocess(logits)
+            preds = output.get("labels", logits)
+        else:
+            preds = logits
 
-        if isinstance(output, dict):
-            if "preds" not in output:
-                raise ValueError("Model output dict must contain a 'preds' key.")
-            return {
-                "preds": output["preds"],
-                "targets": targets,
-                "metrics": output.get("metrics", {}),
-            }
-
-        raise TypeError(
-            "Model output must be either a Tensor or a dict containing 'preds'."
-        )
+        return {
+            "preds": preds,
+            "targets": targets,
+            "metrics": {},
+        }

@@ -18,10 +18,14 @@ class SimpleDataLoader(DataLoader[tuple[Tensor, dict[str, Any]]]):
     def __init__(
         self,
         dataset: Dataset,
+        dataset_percentage_per_epoch: int = 100,
         batch_size: int = 1,
         shuffle: bool = False,
     ):
+        if not 1 <= dataset_percentage_per_epoch <= 100:
+            raise ValueError("dataset_percentage_per_epoch must be between 1 and 100.")
         self.dataset = dataset
+        self.dataset_percentage_per_epoch = dataset_percentage_per_epoch
         self.batch_size = batch_size
         self.shuffle = shuffle
 
@@ -31,6 +35,13 @@ class SimpleDataLoader(DataLoader[tuple[Tensor, dict[str, Any]]]):
         if self.shuffle:
             random.shuffle(indices)
 
+        if self.dataset_percentage_per_epoch < 100:
+            total = max(
+                1,
+                int(len(indices) * self.dataset_percentage_per_epoch / 100),
+            )
+            indices = indices[:total]
+
         for start in range(0, len(indices), self.batch_size):
             batch_indices = indices[start : start + self.batch_size]
             samples = [self.dataset[i] for i in batch_indices]
@@ -38,7 +49,11 @@ class SimpleDataLoader(DataLoader[tuple[Tensor, dict[str, Any]]]):
 
     def __len__(self) -> int:
         # number of batches
-        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
+        total = max(
+            1,
+            int(len(self.dataset) * self.dataset_percentage_per_epoch / 100),
+        )
+        return (total + self.batch_size - 1) // self.batch_size
 
     def _collate_batch(
         self,

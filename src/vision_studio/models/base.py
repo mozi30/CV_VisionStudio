@@ -8,31 +8,73 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
+from ..types import InputSpec, OutputSpec, LossOutput, PostprocessOutput
+
 
 class BaseModel(nn.Module, ABC):
-    """Generic base interface for ML/CV models."""
+    """Strict base interface for ML/CV models.
 
-    def __init__(self) -> None:
-        super().__init__()
+    Key design principles:
+    - forward() returns ONLY logits/raw outputs (Tensor) for speed
+    - postprocess() handles task-specific postprocessing (probabilities, labels, etc.)
+    - Input/output specs are explicitly defined
+    - Strict separation between forward pass and postprocessing
+    """
+
+    # -------------------------
+    # Input/Output specifications
+    # -------------------------
+    @property
+    @abstractmethod
+    def input_spec(self) -> InputSpec:
+        """Define expected input shape, dtype, and device."""
+        raise NotImplementedError
+
+    @property
+    @abstractmethod
+    def output_spec(self) -> OutputSpec:
+        """Define output shape, dtype from forward()."""
+        raise NotImplementedError
 
     # -------------------------
     # Core forward / inference
     # -------------------------
     @abstractmethod
-    def forward(
-        self,
-        inputs: Tensor,
-        targets: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Main model computation."""
+    def forward(self, inputs: Tensor) -> Tensor:
+        """
+        Main model computation - returns ONLY raw logits/outputs.
+
+        Args:
+            inputs: Input tensor matching input_spec
+
+        Returns:
+            Raw model outputs (logits) as a single Tensor
+        """
+        raise NotImplementedError
+
+    @abstractmethod
+    def postprocess(self, logits: Tensor) -> PostprocessOutput:
+        """
+        Task-specific postprocessing of raw outputs.
+
+        Converts raw logits to task-specific outputs (probs, labels, etc.)
+        This is called during inference and evaluation.
+
+        Args:
+            logits: Raw model output from forward()
+
+        Returns:
+            Dictionary with task-specific processed outputs
+        """
         raise NotImplementedError
 
     @torch.no_grad()
-    def predict(self, inputs: Tensor) -> dict[str, Any]:
-        """Inference-only helper."""
+    def predict(self, inputs: Tensor) -> PostprocessOutput:
+        """Inference-only helper: forward + postprocess."""
         was_training = self.training
         self.eval()
-        outputs = self.forward(inputs, targets=None)
+        logits = self.forward(inputs)
+        outputs = self.postprocess(logits)
         if was_training:
             self.train()
         return outputs
@@ -43,33 +85,33 @@ class BaseModel(nn.Module, ABC):
     @abstractmethod
     def compute_loss(
         self,
-        outputs: dict[str, Any],
+        logits: Tensor,
         targets: dict[str, Any],
-    ) -> dict[str, Tensor]:
-        """Return one or more losses."""
+    ) -> LossOutput:
+        """Return loss output with strict type contract."""
         raise NotImplementedError
 
     def training_step(
         self,
         batch: tuple[Tensor, dict[str, Any]],
-    ) -> dict[str, Tensor]:
+    ) -> LossOutput:
         """Run one training step on a batch."""
         inputs, targets = batch
-        outputs = self.forward(inputs, targets=targets)
-        losses = self.compute_loss(outputs, targets)
+        logits = self.forward(inputs)
+        losses = self.compute_loss(logits, targets)
         return losses
 
     @torch.no_grad()
     def validation_step(
         self,
         batch: tuple[Tensor, dict[str, Any]],
-    ) -> dict[str, Tensor]:
+    ) -> LossOutput:
         """Run one validation step on a batch."""
         inputs, targets = batch
         was_training = self.training
         self.eval()
-        outputs = self.forward(inputs, targets=targets)
-        losses = self.compute_loss(outputs, targets)
+        logits = self.forward(inputs)
+        losses = self.compute_loss(logits, targets)
         if was_training:
             self.train()
         return losses
@@ -78,7 +120,7 @@ class BaseModel(nn.Module, ABC):
     def test_step(
         self,
         batch: tuple[Tensor, dict[str, Any]],
-    ) -> dict[str, Tensor]:
+    ) -> LossOutput:
         """Run one test step on a batch."""
         return self.validation_step(batch)
 
@@ -147,8 +189,8 @@ class BaseModel(nn.Module, ABC):
         """Export model as TorchScript."""
         was_training = self.training
         self.eval()
-        traced = torch.jit.trace(self, example_inputs)
-        traced.save(str(path))
+        traced = torch.jit.trace(self, (example_inputs,))
+        torch.jit.save(traced, str(path))
         if was_training:
             self.train()
 
@@ -165,7 +207,7 @@ class BaseModel(nn.Module, ABC):
         self.eval()
         torch.onnx.export(
             self,
-            example_inputs,
+            (example_inputs,),
             str(path),
             input_names=input_names or ["inputs"],
             output_names=output_names or ["outputs"],

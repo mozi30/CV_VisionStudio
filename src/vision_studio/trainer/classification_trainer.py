@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 from typing import Any
-
 import torch
-from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from torch.optim import Optimizer
 
 from .base import Trainer
+from ..evaluate import ClassificationEvaluator
 
 
 class ClassificationTrainer(Trainer):
@@ -14,24 +13,37 @@ class ClassificationTrainer(Trainer):
 
     Provides training with classification-specific metrics:
     - Accuracy
-    - Precision
-    - Recall
-    - F1 Score
+    - Precision (macro/micro)
+    - Recall (macro/micro)
+    - F1 Score (macro/micro)
+    - Confusion Matrix
+    - Top-K Accuracy
     """
 
     def __init__(
         self,
         optimizer: Optimizer,
         device: torch.device | str = "cpu",
+        num_classes: int | None = None,
+        topk: tuple[int, ...] = (1, 5),
     ) -> None:
         """Initialize the classification trainer.
 
         Args:
             optimizer: PyTorch optimizer
             device: Device to use for training (default: "cpu")
+            num_classes: Number of classes for evaluation metrics
+            topk: Tuple of k values for top-k accuracy computation
 
         """
         super().__init__(optimizer=optimizer, device=device)
+        self.num_classes = num_classes
+        self.topk = topk
+        self.evaluator = (
+            ClassificationEvaluator(num_classes=num_classes, topk=topk)
+            if num_classes is not None
+            else None
+        )
 
     def fit(
         self,
@@ -39,7 +51,7 @@ class ClassificationTrainer(Trainer):
         train_loader,
         val_loader=None,
         num_epochs: int = 1,
-    ) -> dict[str, Any]:
+    ) -> dict[str, list[dict[str, Any]]]:
         """Train the model for multiple epochs.
 
         Args:
@@ -54,7 +66,7 @@ class ClassificationTrainer(Trainer):
         """
         model.to(self.device)
 
-        history: dict[str, list[dict[str, float]]] = {
+        history: dict[str, list[dict[str, Any]]] = {
             "train": [],
             "val": [],
         }
@@ -74,7 +86,7 @@ class ClassificationTrainer(Trainer):
         self,
         model,
         train_loader,
-    ) -> dict[str, float]:
+    ) -> dict[str, Any]:
         """Train for one epoch.
 
         Args:
@@ -88,9 +100,11 @@ class ClassificationTrainer(Trainer):
         model.train()
 
         total_loss = 0.0
-        all_preds = []
-        all_labels = []
         num_batches = 0
+
+        # Reset evaluator if available
+        if self.evaluator is not None:
+            self.evaluator.reset()
 
         for batch in train_loader:
             inputs, targets = self.move_batch_to_device(batch)
@@ -109,14 +123,18 @@ class ClassificationTrainer(Trainer):
 
             # Collect predictions and labels for metrics
             with torch.no_grad():
-                outputs = model.forward(inputs, targets=None)
-                preds = outputs["labels"].detach().cpu().numpy()
-                labels = targets["label"].detach().cpu().numpy()
-                all_preds.extend(preds)
-                all_labels.extend(labels)
+                logits = model.forward(inputs)
+                outputs = model.postprocess(logits)
+                preds = outputs["logits"].detach().cpu()
+                labels = targets["label"].detach().cpu()
+
+                if self.evaluator is not None:
+                    self.evaluator.update(preds, labels)
 
         # Compute metrics
-        metrics = self._compute_metrics(all_labels, all_preds)
+        metrics: dict[str, Any] = {}
+        if self.evaluator is not None:
+            metrics = dict(self.evaluator.compute())
         metrics["loss"] = total_loss / max(1, num_batches)
 
         return metrics
@@ -126,7 +144,7 @@ class ClassificationTrainer(Trainer):
         self,
         model,
         val_loader,
-    ) -> dict[str, float]:
+    ) -> dict[str, Any]:
         """Validate the model.
 
         Args:
@@ -140,9 +158,11 @@ class ClassificationTrainer(Trainer):
         model.eval()
 
         total_loss = 0.0
-        all_preds = []
-        all_labels = []
         num_batches = 0
+
+        # Reset evaluator if available
+        if self.evaluator is not None:
+            self.evaluator.reset()
 
         for batch in val_loader:
             inputs, targets = self.move_batch_to_device(batch)
@@ -153,38 +173,18 @@ class ClassificationTrainer(Trainer):
             num_batches += 1
 
             # Collect predictions and labels for metrics
-            outputs = model.forward(inputs, targets=None)
-            preds = outputs["labels"].detach().cpu().numpy()
-            labels = targets["label"].detach().cpu().numpy()
-            all_preds.extend(preds)
-            all_labels.extend(labels)
+            logits = model.forward(inputs)
+            outputs = model.postprocess(logits)
+            preds = outputs["logits"].detach().cpu()
+            labels = targets["label"].detach().cpu()
+
+            if self.evaluator is not None:
+                self.evaluator.update(preds, labels)
 
         # Compute metrics
-        metrics = self._compute_metrics(all_labels, all_preds)
+        metrics: dict[str, Any] = {}
+        if self.evaluator is not None:
+            metrics = dict(self.evaluator.compute())
         metrics["loss"] = total_loss / max(1, num_batches)
 
         return metrics
-
-    @staticmethod
-    def _compute_metrics(labels: list[int], preds: list[int]) -> dict[str, float]:
-        """Compute classification metrics.
-
-        Args:
-            labels: True labels
-            preds: Predicted labels
-
-        Returns:
-            Dictionary with accuracy, precision, recall, and f1 score
-
-        """
-        accuracy = accuracy_score(labels, preds)
-        precision = precision_score(labels, preds, average="weighted", zero_division=0)
-        recall = recall_score(labels, preds, average="weighted", zero_division=0)
-        f1 = f1_score(labels, preds, average="weighted", zero_division=0)
-
-        return {
-            "accuracy": accuracy,
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-        }

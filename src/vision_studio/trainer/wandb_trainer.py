@@ -3,11 +3,14 @@ from __future__ import annotations
 from collections import defaultdict
 from collections.abc import Iterable
 from typing import Any
-
+from tqdm import tqdm
 import torch
 import wandb
 from torch import Tensor
 from torch.nn import Module
+
+from vision_studio.models.base import BaseModel
+from ..types import LossOutput
 
 from .base import Trainer
 
@@ -15,9 +18,16 @@ Batch = tuple[Tensor, dict[str, Any]]
 
 
 class WandbTrainer(Trainer):
+    """WandB trainer with built-in evaluator support.
+
+    Automatically logs metrics to Weights & Biases while training.
+    Can optionally integrate a task-specific evaluator for comprehensive metrics.
+    """
+
     def __init__(
         self,
         optimizer,
+        evaluator=None,
         device: torch.device | str = "cpu",
         epochs: int = 10,
         project: str = "my-project",
@@ -26,8 +36,22 @@ class WandbTrainer(Trainer):
         config: dict[str, Any] | None = None,
         use_wandb: bool = True,
     ) -> None:
+        """Initialize WandB Trainer.
+
+        Args:
+            optimizer: PyTorch optimizer
+            evaluator: Optional evaluator for computing task-specific metrics
+            device: Device to use for training (default: "cpu")
+            epochs: Number of epochs to train
+            project: WandB project name
+            run_name: WandB run name
+            log_every_n_steps: Log to WandB every N steps
+            config: Configuration dict to log to WandB
+            use_wandb: Whether to use WandB logging (default: True)
+        """
         super().__init__(optimizer=optimizer, device=device)
         self.epochs = epochs
+        self.evaluator = evaluator
         self.project = project
         self.run_name = run_name
         self.log_every_n_steps = log_every_n_steps
@@ -37,7 +61,7 @@ class WandbTrainer(Trainer):
 
     def fit(
         self,
-        model: Module,
+        model: BaseModel,
         train_loader: Iterable[Batch],
         val_loader: Iterable[Batch] | None = None,
     ) -> dict[str, Any]:
@@ -52,7 +76,7 @@ class WandbTrainer(Trainer):
             wandb.watch(model, log="all", log_freq=self.log_every_n_steps)
             self._wandb_initialized = True
 
-        history: dict[str, list[dict[str, float]]] = {
+        history: dict[str, list[dict[str, Any]]] = {
             "train": [],
             "val": [],
         }
@@ -94,75 +118,118 @@ class WandbTrainer(Trainer):
 
     def train_epoch(
         self,
-        model: Module,
+        model: BaseModel,
         train_loader: Iterable[Batch],
-    ) -> dict[str, float]:
+    ) -> dict[str, Any]:
         model.train()
         totals: dict[str, float] = defaultdict(float)
         num_batches = 0
-        for batch_idx, batch in enumerate(train_loader):
+
+        # Reset evaluator if available
+        if self.evaluator is not None:
+            self.evaluator.reset()
+
+        for batch_idx, batch in enumerate(tqdm(train_loader)):
             inputs, targets = self.move_batch_to_device(batch)
 
             self.optimizer.zero_grad()
-            output = model(inputs, targets)
-            output = model.compute_loss(output, targets)
-            metrics = self._parse_model_output(output)
+            logits = model(inputs)
+            metrics_dict = model.compute_loss(logits, targets)
+            metrics = self._parse_model_output(metrics_dict)
             loss = metrics["loss"]
-
+            if not isinstance(loss, Tensor):
+                raise TypeError("Training loss must be a tensor.")
             loss.backward()
             self.optimizer.step()
 
             for key, value in metrics.items():
-                totals[key] += float(value)
-
+                totals[key] += self._to_float(value)
             self.global_step += 1
             num_batches += 1
+
+            # Collect predictions for evaluator
+            if self.evaluator is not None:
+                with torch.no_grad():
+                    outputs = model.postprocess(logits)
+                    preds = outputs["logits"].detach().cpu()
+                    labels = targets["label"].detach().cpu()
+                    self.evaluator.update(preds, labels)
 
             if self.use_wandb and batch_idx % self.log_every_n_steps == 0:
                 wandb.log(
                     {
-                        **{f"train_step/{k}": float(v) for k, v in metrics.items()},
+                        **{f"train_step/{k}": self._to_float(v) for k, v in metrics.items()},
                         "epoch": self.current_epoch,
                     },
                     step=self.global_step,
                 )
 
-        return self._average_metrics(totals, num_batches)
+        # Add evaluator metrics
+        averaged_metrics = self._average_metrics(totals, num_batches)
+        if self.evaluator is not None:
+            evaluator_metrics = self.evaluator.compute()
+            averaged_metrics.update(evaluator_metrics)
+
+        return averaged_metrics
 
     @torch.no_grad()
     def validate(
         self,
-        model: Module,
+        model: BaseModel,
         val_loader: Iterable[Batch],
-    ) -> dict[str, float]:
+    ) -> dict[str, Any]:
         model.eval()
         totals: dict[str, float] = defaultdict(float)
         num_batches = 0
 
+        # Reset evaluator if available
+        if self.evaluator is not None:
+            self.evaluator.reset()
+
         for batch in val_loader:
             inputs, targets = self.move_batch_to_device(batch)
-            output = model(inputs, targets)
-            metrics = self._parse_model_output(output)
+            logits = model(inputs)
+
+            metrics = self._parse_model_output(model.compute_loss(logits, targets))
 
             for key, value in metrics.items():
-                totals[key] += float(value)
+                totals[key] += self._to_float(value)
 
             num_batches += 1
 
-        return self._average_metrics(totals, num_batches)
+            # Collect predictions for evaluator
+            if self.evaluator is not None:
+                outputs = model.postprocess(logits)
+                preds = outputs["logits"].detach().cpu()
+                labels = targets["label"].detach().cpu()
+                self.evaluator.update(preds, labels)
 
-    def _parse_model_output(self, output: Any) -> dict[str, float | Tensor]:
-        if isinstance(output, Tensor):
-            return {"loss": output}
+        averaged_metrics = self._average_metrics(totals, num_batches)
+        if self.evaluator is not None:
+            evaluator_metrics = self.evaluator.compute()
+            averaged_metrics.update(evaluator_metrics)
 
-        if isinstance(output, dict):
-            if "loss" not in output:
-                raise ValueError("Model output dict must contain a 'loss' key.")
-            return output
+        return averaged_metrics
 
-        raise TypeError(
-            "Model output must be either a Tensor or a dict containing 'loss'."
-        )
+    def _to_float(self, value: Any) -> float:
+        if isinstance(value, Tensor):
+            if value.numel() == 1:
+                return float(value.item())
+            return float(value.detach().float().mean().item())
+        return float(value)
+
+    def _parse_model_output(self, output: LossOutput) -> dict[str, Tensor]:
+        """Parse model loss output to extract loss tensor.
+
+        Args:
+            output: LossOutput from model.compute_loss()
+
+        Returns:
+            Dictionary with loss tensor
+        """
+        if "loss" not in output:
+            raise ValueError("Model output dict must contain a 'loss' key.")
+        return {"loss": output["loss"]}
 
     def _average_metrics(
         self,
