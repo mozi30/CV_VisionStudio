@@ -1,16 +1,17 @@
 from __future__ import annotations
 
-from collections import defaultdict
 from collections.abc import Iterable
+from numbers import Number
 from typing import Any
 from tqdm import tqdm
 import torch
 import wandb
 from torch import Tensor
-from torch.nn import Module
 
 from vision_studio.models.base import BaseModel
+from vision_studio.types import EvaluatorOutput
 from ..types import LossOutput
+from vision_studio.evaluate import LossEvaluator
 
 from .base import Trainer
 
@@ -51,7 +52,10 @@ class WandbTrainer(Trainer):
         """
         super().__init__(optimizer=optimizer, device=device)
         self.epochs = epochs
-        self.evaluator = evaluator
+        if evaluator is not None:
+            self.evaluator = evaluator
+        else:
+            self.evaluator = LossEvaluator()
         self.project = project
         self.run_name = run_name
         self.log_every_n_steps = log_every_n_steps
@@ -73,10 +77,9 @@ class WandbTrainer(Trainer):
                 name=self.run_name,
                 config=self.config,
             )
-            wandb.watch(model, log="all", log_freq=self.log_every_n_steps)
             self._wandb_initialized = True
 
-        history: dict[str, list[dict[str, Any]]] = {
+        history: dict[str, list[EvaluatorOutput]] = {
             "train": [],
             "val": [],
         }
@@ -90,15 +93,16 @@ class WandbTrainer(Trainer):
             train_metrics = self.train_epoch(model, train_loader)
             history["train"].append(train_metrics)
 
-            log_data: dict[str, float | int] = {
-                f"train/{k}": v for k, v in train_metrics.items()
-            }
+            log_data: dict[str, float | int] = self._format_wandb_metrics(
+                "train/",
+                train_metrics,
+            )
             log_data["epoch"] = epoch
 
             if val_loader is not None:
                 val_metrics = self.validate(model, val_loader)
                 history["val"].append(val_metrics)
-                log_data.update({f"val/{k}": v for k, v in val_metrics.items()})
+                log_data.update(self._format_wandb_metrics("val/", val_metrics))
 
                 val_loss = val_metrics.get("loss")
                 if val_loss is not None and val_loss < best_val_loss:
@@ -120,14 +124,11 @@ class WandbTrainer(Trainer):
         self,
         model: BaseModel,
         train_loader: Iterable[Batch],
-    ) -> dict[str, Any]:
+    ) -> EvaluatorOutput:
         model.train()
-        totals: dict[str, float] = defaultdict(float)
-        num_batches = 0
 
-        # Reset evaluator if available
-        if self.evaluator is not None:
-            self.evaluator.reset()
+        loss_sum = 0.0
+        loss_count = 0
 
         for batch_idx, batch in enumerate(tqdm(train_loader)):
             inputs, targets = self.move_batch_to_device(batch)
@@ -142,74 +143,58 @@ class WandbTrainer(Trainer):
             loss.backward()
             self.optimizer.step()
 
-            for key, value in metrics.items():
-                totals[key] += self._to_float(value)
             self.global_step += 1
-            num_batches += 1
-
-            # Collect predictions for evaluator
-            if self.evaluator is not None:
-                with torch.no_grad():
-                    outputs = model.postprocess(logits)
-                    preds = outputs["logits"].detach().cpu()
-                    labels = targets["label"].detach().cpu()
-                    self.evaluator.update(preds, labels)
+            batch_size = int(inputs.shape[0]) if hasattr(inputs, "shape") else 1
+            loss_sum += float(loss.detach().cpu().item()) * batch_size
+            loss_count += batch_size
 
             if self.use_wandb and batch_idx % self.log_every_n_steps == 0:
                 wandb.log(
                     {
-                        **{f"train_step/{k}": self._to_float(v) for k, v in metrics.items()},
+                        "train_step/loss": self._to_float(loss),
                         "epoch": self.current_epoch,
                     },
                     step=self.global_step,
                 )
+        return {
+            "loss": loss_sum / loss_count if loss_count else 0.0,
+        }
 
-        # Add evaluator metrics
-        averaged_metrics = self._average_metrics(totals, num_batches)
-        if self.evaluator is not None:
-            evaluator_metrics = self.evaluator.compute()
-            averaged_metrics.update(evaluator_metrics)
-
-        return averaged_metrics
 
     @torch.no_grad()
     def validate(
         self,
         model: BaseModel,
         val_loader: Iterable[Batch],
-    ) -> dict[str, Any]:
+    ) -> EvaluatorOutput:
         model.eval()
-        totals: dict[str, float] = defaultdict(float)
         num_batches = 0
-
-        # Reset evaluator if available
-        if self.evaluator is not None:
+        if self.evaluator is None:
+            raise Exception("Cannot validate model without evaluator.")
+        else:
+            # Reset evaluator if available
             self.evaluator.reset()
 
         for batch in val_loader:
             inputs, targets = self.move_batch_to_device(batch)
             logits = model(inputs)
-
-            metrics = self._parse_model_output(model.compute_loss(logits, targets))
-
-            for key, value in metrics.items():
-                totals[key] += self._to_float(value)
+            metrics_dict = model.compute_loss(logits, targets)
+            metrics = self._parse_model_output(metrics_dict)
+            loss = metrics["loss"]
 
             num_batches += 1
 
             # Collect predictions for evaluator
             if self.evaluator is not None:
-                outputs = model.postprocess(logits)
-                preds = outputs["logits"].detach().cpu()
-                labels = targets["label"].detach().cpu()
-                self.evaluator.update(preds, labels)
+                if isinstance(self.evaluator, LossEvaluator):
+                    self.evaluator.update(logits, targets, loss)
+                else:
+                    outputs = model.postprocess(logits)
+                    preds = outputs["logits"].detach().cpu()
+                    labels = targets["label"].detach().cpu()
+                    self.evaluator.update(preds, labels, loss)
+        return self.evaluator.compute()
 
-        averaged_metrics = self._average_metrics(totals, num_batches)
-        if self.evaluator is not None:
-            evaluator_metrics = self.evaluator.compute()
-            averaged_metrics.update(evaluator_metrics)
-
-        return averaged_metrics
 
     def _to_float(self, value: Any) -> float:
         if isinstance(value, Tensor):
@@ -217,6 +202,27 @@ class WandbTrainer(Trainer):
                 return float(value.item())
             return float(value.detach().float().mean().item())
         return float(value)
+
+    def _format_wandb_metrics(
+        self,
+        prefix: str,
+        metrics: EvaluatorOutput,
+    ) -> dict[str, float]:
+        formatted: dict[str, float] = {}
+        for key, value in metrics.items():
+            metric_key = f"{prefix}{key}"
+            if isinstance(value, dict):
+                for sub_key, sub_value in value.items():
+                    if isinstance(sub_value, (Number, Tensor)):
+                        formatted[f"{metric_key}/{sub_key}"] = self._to_float(
+                            sub_value
+                        )
+                continue
+
+            if isinstance(value, (Number, Tensor)):
+                formatted[metric_key] = self._to_float(value)
+
+        return formatted
 
     def _parse_model_output(self, output: LossOutput) -> dict[str, Tensor]:
         """Parse model loss output to extract loss tensor.
@@ -230,12 +236,3 @@ class WandbTrainer(Trainer):
         if "loss" not in output:
             raise ValueError("Model output dict must contain a 'loss' key.")
         return {"loss": output["loss"]}
-
-    def _average_metrics(
-        self,
-        totals: dict[str, float],
-        num_batches: int,
-    ) -> dict[str, float]:
-        if num_batches == 0:
-            return {k: 0.0 for k in totals}
-        return {k: v / num_batches for k, v in totals.items()}

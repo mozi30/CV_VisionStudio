@@ -7,7 +7,6 @@ from .image_augmentations import (
     Cutout,
     GaussianBlur,
     GaussianNoise,
-    Grayscale,
     HorizontalFlip,
     HueShift,
     Mixup,
@@ -23,6 +22,16 @@ from .image_augmentations import (
     Shear,
     Translate,
     VerticalFlip,
+)
+from .preprocessing import (
+    BrightnessNormalization,
+    CannyEdge,
+    ContrastNormalization,
+    CustomFilter,
+    GaussianBlurFilter,
+    Grayscale,
+    HistogramEqualization,
+    SobelFilter,
 )
 
 __all__ = [
@@ -53,4 +62,11 @@ __all__ = [
     "CutMix",
     "Normalize",
     "RandomResizedCrop",
+    "HistogramEqualization",
+    "BrightnessNormalization",
+    "ContrastNormalization",
+    "GaussianBlurFilter",
+    "SobelFilter",
+    "CannyEdge",
+    "CustomFilter",
 ]

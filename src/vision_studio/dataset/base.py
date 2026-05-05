@@ -21,6 +21,6 @@ class Dataset(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def get_image_size(self) -> tuple[int, int]:
+    def get_image_size(self) -> tuple[int, int] | None:
         """Return the image size (height, width) of the dataset."""
         raise NotImplementedError

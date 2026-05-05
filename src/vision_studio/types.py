@@ -5,7 +5,7 @@ Provides TypedDict contracts for different computer vision tasks.
 Each task defines its own output formats while maintaining a common base.
 """
 
-from typing import TypedDict
+from typing import TypeAlias, TypedDict
 import torch
 from torch import Tensor
 
@@ -36,6 +36,11 @@ class LossOutput(TypedDict):
     loss: Tensor
 
 
+class EvaluatorOutput(TypedDict):
+    """Base Evaluator output - all evaluations must include loss"""
+    loss: float
+
+
 class PostprocessOutput(TypedDict):
     """Base postprocess output - all tasks must include logits."""
     logits: Tensor
@@ -51,7 +56,7 @@ class ClassificationPostprocessOutput(PostprocessOutput):
     labels: Tensor  # [batch]
 
 
-class ClassificationEvaluatorOutput(TypedDict, total=False):
+class ClassificationEvaluatorOutput(EvaluatorOutput, total=False):
     """Classification metrics from evaluator.compute()."""
     accuracy: float
     precision_macro: float
@@ -75,7 +80,7 @@ class DetectionPostprocessOutput(PostprocessOutput):
     labels: Tensor  # [num_detections] class indices
 
 
-class DetectionEvaluatorOutput(TypedDict, total=False):
+class DetectionEvaluatorOutput(EvaluatorOutput, total=False):
     """Detection metrics from evaluator.compute()."""
     ap: float  # Average precision @ IoU=0.50:0.95
     ap50: float  # Average precision @ IoU=0.50
@@ -96,7 +101,7 @@ class SegmentationPostprocessOutput(PostprocessOutput):
     class_ids: Tensor  # [batch] or [num_masks]
 
 
-class SegmentationEvaluatorOutput(TypedDict, total=False):
+class SegmentationEvaluatorOutput(EvaluatorOutput, total=False):
     """Segmentation metrics from evaluator.compute()."""
     miou: float  # Mean Intersection over Union
     iou_per_class: dict[int, float]  # IoU for each class
@@ -116,7 +121,7 @@ class KeypointPostprocessOutput(PostprocessOutput):
     object_ids: Tensor  # [batch] or [num_objects] which object each keypoint belongs to
 
 
-class KeypointEvaluatorOutput(TypedDict, total=False):
+class KeypointEvaluatorOutput(EvaluatorOutput, total=False):
     """Keypoint detection metrics from evaluator.compute()."""
     oks: float  # Object Keypoint Similarity
     oks_per_keypoint: dict[int, float]  # OKS per keypoint
@@ -139,3 +144,4 @@ class EvaluatorBatch(TypedDict):
     """Single batch input to evaluator.update()."""
     predictions: Tensor  # Task-specific format
     targets: Tensor  # Task-specific format
+    loss: Tensor  # Batch loss value

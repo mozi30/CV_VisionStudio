@@ -10,6 +10,7 @@ from PIL import Image
 from torch import Tensor
 from torch.optim import Optimizer
 from torchvision.transforms import functional as F
+from vision_studio.types import EvaluatorOutput
 
 Batch = tuple[Tensor, dict[str, Any]]
 
@@ -39,7 +40,7 @@ class Trainer(ABC):
         self,
         model,
         train_loader: Iterable[Batch],
-    ) -> dict[str, float]:
+    ) -> EvaluatorOutput:
         raise NotImplementedError
 
     @abstractmethod
@@ -47,14 +48,14 @@ class Trainer(ABC):
         self,
         model,
         val_loader: Iterable[Batch],
-    ) -> dict[str, float]:
+    ) -> EvaluatorOutput:
         raise NotImplementedError
 
     def test(
         self,
         model,
         test_loader: Iterable[Batch],
-    ) -> dict[str, float]:
+    ) -> EvaluatorOutput:
         return self.validate(model, test_loader)
 
     def move_batch_to_device(self, batch: Batch) -> Batch:

@@ -56,6 +56,7 @@ class DetectionEvaluator(BaseEvaluator):
         num_classes: int,
         iou_thresholds: Optional[List[float]] = None,
     ):
+        super().__init__()
         self.num_classes = num_classes
         self.iou_thresholds = iou_thresholds or [
             0.50, 0.55, 0.60, 0.65, 0.70,
@@ -64,6 +65,7 @@ class DetectionEvaluator(BaseEvaluator):
         self.reset()
 
     def reset(self) -> None:
+        super().reset()
         self.predictions = []
         self.targets = []
 
@@ -71,7 +73,9 @@ class DetectionEvaluator(BaseEvaluator):
         self,
         predictions: List[Dict[str, torch.Tensor]],
         targets: List[Dict[str, torch.Tensor]],
+        loss: torch.Tensor | float,
     ) -> None:
+        self.update_loss(loss, len(targets))
         for pred, target in zip(predictions, targets):
             self.predictions.append({
                 "boxes": pred["boxes"].detach().cpu(),
@@ -84,7 +88,7 @@ class DetectionEvaluator(BaseEvaluator):
             })
 
     def compute(self) -> Dict[str, float]:
-        metrics = {}
+        metrics = self.base_metrics()
 
         ap_per_threshold = []
 
