@@ -4,6 +4,7 @@ import math
 import random
 from typing import Any
 
+import cv2
 import numpy as np
 from PIL import Image, ImageEnhance, ImageFilter
 
@@ -56,7 +57,8 @@ class VerticalFlip(Augmentation):
 
 
 class Rotate(Augmentation):
-    def __init__(self, degrees: float, expand: bool = False):
+    def __init__(self, degrees: float, expand: bool = False, p: float = 1.0):
+        super().__init__(p=p)
         self.degrees = degrees
         self.expand = expand
 
@@ -72,7 +74,8 @@ class Rotate(Augmentation):
 
 
 class RandomCrop(Augmentation):
-    def __init__(self, crop_height: int, crop_width: int):
+    def __init__(self, crop_height: int, crop_width: int, p: float = 1.0):
+        super().__init__(p=p)
         self.crop_height = crop_height
         self.crop_width = crop_width
 
@@ -103,7 +106,8 @@ class RandomCrop(Augmentation):
 
 
 class Resize(Augmentation):
-    def __init__(self, height: int, width: int):
+    def __init__(self, height: int, width: int, p: float = 1.0):
+        super().__init__(p=p)
         self.height = height
         self.width = width
 
@@ -137,7 +141,8 @@ class Resize(Augmentation):
 
 
 class RandomScale(Augmentation):
-    def __init__(self, min_scale: float = 0.8, max_scale: float = 1.2):
+    def __init__(self, min_scale: float = 0.8, max_scale: float = 1.2, p: float = 1.0):
+        super().__init__(p=p)
         self.min_scale = min_scale
         self.max_scale = max_scale
 
@@ -154,7 +159,8 @@ class RandomScale(Augmentation):
 
 
 class Translate(Augmentation):
-    def __init__(self, max_dx: int, max_dy: int, fill: int = 0):
+    def __init__(self, max_dx: int, max_dy: int, fill: int = 0, p: float = 1.0):
+        super().__init__(p=p)
         self.max_dx = max_dx
         self.max_dy = max_dy
         self.fill = fill
@@ -195,7 +201,8 @@ class Translate(Augmentation):
 
 
 class Shear(Augmentation):
-    def __init__(self, max_shear_degrees: float = 10.0):
+    def __init__(self, max_shear_degrees: float = 10.0, p: float = 1.0):
+        super().__init__(p=p)
         self.max_shear_degrees = max_shear_degrees
 
     def __call__(
@@ -217,7 +224,8 @@ class Shear(Augmentation):
 
 
 class PerspectiveTransform(Augmentation):
-    def __init__(self, distortion_scale: float = 0.2):
+    def __init__(self, distortion_scale: float = 0.2, p: float = 1.0):
+        super().__init__(p=p)
         self.distortion_scale = distortion_scale
 
     def __call__(
@@ -244,7 +252,8 @@ class PerspectiveTransform(Augmentation):
 
 
 class Brightness(Augmentation):
-    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2):
+    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+        super().__init__(p=p)
         self.min_factor = min_factor
         self.max_factor = max_factor
 
@@ -255,7 +264,8 @@ class Brightness(Augmentation):
 
 
 class Contrast(Augmentation):
-    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2):
+    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+        super().__init__(p=p)
         self.min_factor = min_factor
         self.max_factor = max_factor
 
@@ -266,7 +276,8 @@ class Contrast(Augmentation):
 
 
 class Saturation(Augmentation):
-    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2):
+    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+        super().__init__(p=p)
         self.min_factor = min_factor
         self.max_factor = max_factor
 
@@ -276,8 +287,29 @@ class Saturation(Augmentation):
         return to_numpy(pil), copy_target(target)
 
 
+class EnhanceColor(Augmentation):
+    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+        super().__init__(p=p)
+        self.min_factor = min_factor
+        self.max_factor = max_factor
+
+    def __call__(self, image: np.ndarray, target: dict[str, Any]):
+        factor = random.uniform(self.min_factor, self.max_factor)
+        arr = clamp_uint8(image)
+
+        if arr.ndim == 2 or arr.shape[-1] == 1:
+            return arr.copy(), copy_target(target)
+
+        hsv = cv2.cvtColor(arr, cv2.COLOR_RGB2HSV).astype(np.float32)
+        hsv[..., 1] *= factor
+        hsv[..., 1] = np.clip(hsv[..., 1], 0, 255)
+        out = cv2.cvtColor(hsv.astype(np.uint8), cv2.COLOR_HSV2RGB)
+        return out, copy_target(target)
+
+
 class HueShift(Augmentation):
-    def __init__(self, max_delta: int = 20):
+    def __init__(self, max_delta: int = 20, p: float = 1.0):
+        super().__init__(p=p)
         self.max_delta = max_delta
 
     def __call__(self, image: np.ndarray, target: dict[str, Any]):
@@ -296,7 +328,9 @@ class ColorJitter(Augmentation):
         contrast: tuple[float, float] = (0.8, 1.2),
         saturation: tuple[float, float] = (0.8, 1.2),
         hue_delta: int = 20,
+        p: float = 1.0,
     ):
+        super().__init__(p=p)
         self.brightness = Brightness(*brightness)
         self.contrast = Contrast(*contrast)
         self.saturation = Saturation(*saturation)
@@ -311,7 +345,8 @@ class ColorJitter(Augmentation):
 
 
 class Grayscale(Augmentation):
-    def __init__(self, keep_channels: bool = True):
+    def __init__(self, keep_channels: bool = True, p: float = 1.0):
+        super().__init__(p=p)
         self.keep_channels = keep_channels
 
     def __call__(self, image: np.ndarray, target: dict[str, Any]):
@@ -323,7 +358,8 @@ class Grayscale(Augmentation):
 
 
 class GaussianNoise(Augmentation):
-    def __init__(self, std: float = 10.0):
+    def __init__(self, std: float = 10.0, p: float = 1.0):
+        super().__init__(p=p)
         self.std = std
 
     def __call__(self, image: np.ndarray, target: dict[str, Any]):
@@ -333,7 +369,8 @@ class GaussianNoise(Augmentation):
 
 
 class GaussianBlur(Augmentation):
-    def __init__(self, radius_min: float = 0.1, radius_max: float = 2.0):
+    def __init__(self, radius_min: float = 0.1, radius_max: float = 2.0, p: float = 1.0):
+        super().__init__(p=p)
         self.radius_min = radius_min
         self.radius_max = radius_max
 
@@ -344,7 +381,8 @@ class GaussianBlur(Augmentation):
 
 
 class MotionBlur(Augmentation):
-    def __init__(self, kernel_size: int = 9):
+    def __init__(self, kernel_size: int = 9, p: float = 1.0):
+        super().__init__(p=p)
         if kernel_size < 3 or kernel_size % 2 == 0:
             raise ValueError("kernel_size must be odd and >= 3")
         self.kernel_size = kernel_size
@@ -360,7 +398,8 @@ class MotionBlur(Augmentation):
 
 
 class Cutout(Augmentation):
-    def __init__(self, mask_height: int, mask_width: int, fill: int = 0):
+    def __init__(self, mask_height: int, mask_width: int, fill: int = 0, p: float = 1.0):
+        super().__init__(p=p)
         self.mask_height = mask_height
         self.mask_width = mask_width
         self.fill = fill
@@ -380,7 +419,9 @@ class Mixup(Augmentation):
         self,
         alpha: float = 0.2,
         source_images: list[np.ndarray] | None = None,
+        p: float = 1.0,
     ):
+        super().__init__(p=p)
         self.alpha = alpha
         self.source_images = source_images or []
 
@@ -404,7 +445,9 @@ class CutMix(Augmentation):
         self,
         alpha: float = 1.0,
         source_images: list[np.ndarray] | None = None,
+        p: float = 1.0,
     ):
+        super().__init__(p=p)
         self.alpha = alpha
         self.source_images = source_images or []
 
@@ -443,7 +486,8 @@ class CutMix(Augmentation):
 
 
 class Normalize(Augmentation):
-    def __init__(self, mean: list[float], std: list[float]):
+    def __init__(self, mean: list[float], std: list[float], p: float = 1.0):
+        super().__init__(p=p)
         self.mean = np.asarray(mean, dtype=np.float32)
         self.std = np.asarray(std, dtype=np.float32)
 
@@ -461,7 +505,9 @@ class RandomResizedCrop(Augmentation):
         output_height: int,
         output_width: int,
         scale: tuple[float, float] = (0.8, 1.0),
+        p: float = 1.0,
     ):
+        super().__init__(p=p)
         self.output_height = output_height
         self.output_width = output_width
         self.scale = scale

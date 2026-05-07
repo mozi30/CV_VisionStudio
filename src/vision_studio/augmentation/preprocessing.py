@@ -23,103 +23,85 @@ def _to_grayscale_float(image: np.ndarray) -> np.ndarray:
 
 
 def _equalize_channel(channel: np.ndarray) -> np.ndarray:
-	hist, _ = np.histogram(channel.flatten(), bins=256, range=(0, 256))
-	cdf = hist.cumsum()
-	cdf_mask = np.ma.masked_equal(cdf, 0)
-	if cdf_mask.max() == cdf_mask.min():
-		return channel.copy()
-	cdf_scaled = (cdf_mask - cdf_mask.min()) * 255 / (cdf_mask.max() - cdf_mask.min())
-	cdf_final = np.ma.filled(cdf_scaled, 0).astype(np.uint8)
-	return cdf_final[channel]
-
-
-def _convolve_2d(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
-	pad = kernel.shape[0] // 2
-	padded = np.pad(image, ((pad, pad), (pad, pad)), mode="edge")
-	out = np.zeros_like(image, dtype=np.float32)
-	for i in range(out.shape[0]):
-		for j in range(out.shape[1]):
-			patch = padded[i : i + kernel.shape[0], j : j + kernel.shape[1]]
-			out[i, j] = np.sum(patch * kernel)
-	return out
+	"""Fast histogram equalization using OpenCV."""
+	return cv2.equalizeHist(channel.astype(np.uint8))
 
 
 def _non_max_suppression(magnitude: np.ndarray, angle: np.ndarray) -> np.ndarray:
+	"""Fast non-maximum suppression using vectorized operations."""
 	out = np.zeros_like(magnitude, dtype=np.float32)
 	angle = angle % 180.0
 	h, w = magnitude.shape
-	for i in range(1, h - 1):
-		for j in range(1, w - 1):
-			q = 0.0
-			r = 0.0
-			if (0 <= angle[i, j] < 22.5) or (157.5 <= angle[i, j] <= 180.0):
-				q = magnitude[i, j + 1]
-				r = magnitude[i, j - 1]
-			elif 22.5 <= angle[i, j] < 67.5:
-				q = magnitude[i + 1, j - 1]
-				r = magnitude[i - 1, j + 1]
-			elif 67.5 <= angle[i, j] < 112.5:
-				q = magnitude[i + 1, j]
-				r = magnitude[i - 1, j]
-			else:
-				q = magnitude[i - 1, j - 1]
-				r = magnitude[i + 1, j + 1]
-
-			if magnitude[i, j] >= q and magnitude[i, j] >= r:
-				out[i, j] = magnitude[i, j]
-	return out
-
-
-def _hysteresis(strong: np.ndarray, weak: np.ndarray) -> np.ndarray:
-	out = np.zeros_like(strong, dtype=np.uint8)
-	out[strong] = 255
-	stack = list(zip(*np.where(strong)))
-	neighbors = [
-		(-1, -1),
-		(-1, 0),
-		(-1, 1),
-		(0, -1),
-		(0, 1),
-		(1, -1),
-		(1, 0),
-		(1, 1),
-	]
-
-	while stack:
-		i, j = stack.pop()
-		for di, dj in neighbors:
-			ni = i + di
-			nj = j + dj
-			if 0 <= ni < out.shape[0] and 0 <= nj < out.shape[1] and weak[ni, nj]:
-				weak[ni, nj] = False
-				out[ni, nj] = 255
-				stack.append((ni, nj))
+	
+	# Vectorized approach for direction indices
+	i = np.arange(1, h - 1)
+	j = np.arange(1, w - 1)
+	ii, jj = np.meshgrid(i, j, indexing='ij')
+	
+	angle_slice = angle[1:-1, 1:-1]
+	mag_slice = magnitude[1:-1, 1:-1]
+	
+	# Define direction masks
+	mask_h = ((angle_slice >= 0) & (angle_slice < 22.5)) | ((angle_slice >= 157.5) & (angle_slice <= 180))
+	mask_diag1 = (angle_slice >= 22.5) & (angle_slice < 67.5)
+	mask_diag2 = (angle_slice >= 67.5) & (angle_slice < 112.5)
+	mask_v = (angle_slice >= 112.5) & (angle_slice < 157.5)
+	
+	# Horizontal
+	q_h = magnitude[1:-1, 2:]
+	r_h = magnitude[1:-1, :-2]
+	cond_h = (mag_slice >= q_h) & (mag_slice >= r_h)
+	out[1:-1, 1:-1][mask_h & cond_h] = mag_slice[mask_h & cond_h]
+	
+	# Diagonal 1 (top-left to bottom-right)
+	q_d1 = magnitude[2:, :-2]
+	r_d1 = magnitude[:-2, 2:]
+	cond_d1 = (mag_slice >= q_d1) & (mag_slice >= r_d1)
+	out[1:-1, 1:-1][mask_diag1 & cond_d1] = mag_slice[mask_diag1 & cond_d1]
+	
+	# Vertical
+	q_v = magnitude[2:, 1:-1]
+	r_v = magnitude[:-2, 1:-1]
+	cond_v = (mag_slice >= q_v) & (mag_slice >= r_v)
+	out[1:-1, 1:-1][mask_diag2 & cond_v] = mag_slice[mask_diag2 & cond_v]
+	
+	# Diagonal 2 (bottom-left to top-right)
+	q_d2 = magnitude[:-2, :-2]
+	r_d2 = magnitude[2:, 2:]
+	cond_d2 = (mag_slice >= q_d2) & (mag_slice >= r_d2)
+	out[1:-1, 1:-1][mask_v & cond_d2] = mag_slice[mask_v & cond_d2]
+	
 	return out
 
 
 class HistogramEqualization(Augmentation):
-	def __init__(self, per_channel: bool = True, keep_channels: bool = True):
+	def __init__(self, per_channel: bool = True, keep_channels: bool = True, use_clahe: bool = False, p: float = 1.0):
+		super().__init__(p=p)
 		self.per_channel = per_channel
 		self.keep_channels = keep_channels
+		self.use_clahe = use_clahe
+		if use_clahe:
+			self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
 	def __call__(self, image: np.ndarray, target: dict[str, Any]):
 		arr = clamp_uint8(image)
 
 		if is_grayscale(arr):
 			gray = arr if arr.ndim == 2 else arr[..., 0]
-			eq = _equalize_channel(gray)
+			eq = self.clahe.apply(gray) if self.use_clahe else cv2.equalizeHist(gray)
 			if arr.ndim == 3:
 				eq = eq[..., None]
 			return eq, copy_target(target)
 
 		if self.per_channel:
-			out = np.empty_like(arr)
-			for c in range(arr.shape[2]):
-				out[..., c] = _equalize_channel(arr[..., c])
+			if self.use_clahe:
+				out = np.stack([self.clahe.apply(arr[..., c]) for c in range(arr.shape[2])], axis=-1)
+			else:
+				out = np.stack([cv2.equalizeHist(arr[..., c]) for c in range(arr.shape[2])], axis=-1)
 			return out, copy_target(target)
 
 		gray = _to_grayscale_float(arr).astype(np.uint8)
-		eq = _equalize_channel(gray)
+		eq = self.clahe.apply(gray) if self.use_clahe else cv2.equalizeHist(gray)
 		if self.keep_channels:
 			out = np.stack([eq, eq, eq], axis=-1)
 			return out, copy_target(target)
@@ -128,7 +110,8 @@ class HistogramEqualization(Augmentation):
 
 
 class BrightnessNormalization(Augmentation):
-	def __init__(self, target_mean: float = 128.0, per_channel: bool = False):
+	def __init__(self, target_mean: float = 128.0, per_channel: bool = False, p: float = 1.0):
+		super().__init__(p=p)
 		self.target_mean = target_mean
 		self.per_channel = per_channel
 
@@ -152,7 +135,9 @@ class ContrastNormalization(Augmentation):
         target_std: float = 50.0,
         per_channel: bool = False,
         eps: float = 1e-6,
+        p: float = 1.0,
     ):
+        super().__init__(p=p)
         self.target_std = target_std
         self.per_channel = per_channel
         self.eps = eps
@@ -189,7 +174,8 @@ class ContrastNormalization(Augmentation):
 
 
 class Grayscale(Augmentation):
-	def __init__(self, keep_channels: bool = True):
+	def __init__(self, keep_channels: bool = True, p: float = 1.0):
+		super().__init__(p=p)
 		self.keep_channels = keep_channels
 
 	def __call__(self, image: np.ndarray, target: dict[str, Any]):
@@ -201,7 +187,8 @@ class Grayscale(Augmentation):
 
 
 class GaussianBlurFilter(Augmentation):
-	def __init__(self, radius: float = 1.0):
+	def __init__(self, radius: float = 1.0, p: float = 1.0):
+		super().__init__(p=p)
 		if radius < 0:
 			raise ValueError("radius must be >= 0")
 		self.radius = radius
@@ -212,7 +199,8 @@ class GaussianBlurFilter(Augmentation):
 
 
 class SobelFilter(Augmentation):
-    def __init__(self, keep_channels: bool = True, normalize: bool = True):
+    def __init__(self, keep_channels: bool = True, normalize: bool = True, p: float = 1.0):
+        super().__init__(p=p)
         self.keep_channels = keep_channels
         self.normalize = normalize
 
@@ -238,7 +226,9 @@ class CannyEdge(Augmentation):
         high_threshold: float = 150.0,
         blur_radius: float = 1.0,
         keep_channels: bool = True,
+        p: float = 1.0,
     ):
+        super().__init__(p=p)
         if low_threshold < 0 or high_threshold < 0:
             raise ValueError("thresholds must be >= 0")
         if low_threshold > high_threshold:
@@ -284,7 +274,8 @@ class CannyEdge(Augmentation):
 
 
 class CustomFilter(Augmentation):
-    def __init__(self, kernel: np.ndarray, normalize: bool = False, clip: bool = True):
+    def __init__(self, kernel: np.ndarray, normalize: bool = False, clip: bool = True, p: float = 1.0):
+        super().__init__(p=p)
         if kernel.ndim != 2:
             raise ValueError("kernel must be 2D")
 
@@ -312,3 +303,43 @@ class CustomFilter(Augmentation):
             out = np.clip(out, 0, 255).astype(np.uint8)
 
         return out, copy_target(target)
+    
+class EdgeSharpen(Augmentation):
+    def __init__(
+        self,
+        strength: float = 0.7,
+        sigma: float = 3.0,
+        p: float = 1.0,
+    ):
+        super().__init__(p=p)
+        self.strength = strength
+        self.sigma = sigma
+
+    def __call__(
+        self,
+        image: np.ndarray,
+        target: dict[str, Any],
+    ) -> tuple[np.ndarray, dict[str, Any]]:
+
+        img = image.copy().astype(np.float32)
+
+        # Large blur removes small details and keeps only broad structures
+        blurred = cv2.GaussianBlur(
+            img,
+            ksize=(0, 0),
+            sigmaX=self.sigma,
+            sigmaY=self.sigma,
+        )
+
+        # Difference emphasizes larger borders/structures
+        sharpened = cv2.addWeighted(
+            img,
+            1.0 + self.strength,
+            blurred,
+            -self.strength,
+            0,
+        )
+
+        sharpened = np.clip(sharpened, 0, 255).astype(image.dtype)
+
+        return sharpened, target

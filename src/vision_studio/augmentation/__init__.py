@@ -1,10 +1,11 @@
-from .base import Augmentation, Compose, OneOf, RandomApply
+from .base import Augmentation, Compose, OneOf
 from .image_augmentations import (
     Brightness,
     ColorJitter,
     Contrast,
     CutMix,
     Cutout,
+    EnhanceColor,
     GaussianBlur,
     GaussianNoise,
     HorizontalFlip,
@@ -32,12 +33,12 @@ from .preprocessing import (
     Grayscale,
     HistogramEqualization,
     SobelFilter,
+    EdgeSharpen,
 )
 
 __all__ = [
     "Augmentation",
     "Compose",
-    "RandomApply",
     "OneOf",
     "HorizontalFlip",
     "VerticalFlip",
@@ -51,6 +52,8 @@ __all__ = [
     "Brightness",
     "Contrast",
     "Saturation",
+    "EnhanceColor",
+    "EdgeSharpen",
     "HueShift",
     "ColorJitter",
     "Grayscale",

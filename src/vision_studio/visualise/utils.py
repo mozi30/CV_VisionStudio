@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections import Counter
 from typing import Any
 from vision_studio.dataset import Dataset
 
@@ -84,4 +85,71 @@ def show_dataset_images(
 		ax.axis("off")
 
 	plt.tight_layout()
+	plt.show()
+
+
+def show_dataset_label_distribution(
+	dataset: Dataset,
+	class_names: list[str] | dict[int, str] | None = None,
+	title: str = "Dataset label distribution",
+) -> None:
+	"""Show a bar chart of label counts for a dataset.
+
+	Args:
+		dataset: Dataset supporting __len__ and __getitem__.
+		class_names: Optional label names, either as an indexable list or a mapping
+			from class id to class name.
+		title: Plot title.
+	"""
+	total = len(dataset)
+	if total == 0:
+		raise ValueError("dataset is empty")
+
+	counts: Counter[int] = Counter()
+	for idx in range(total):
+		sample = dataset[idx]
+		if isinstance(sample, (tuple, list)) and len(sample) > 1:
+			target = sample[1]
+		elif isinstance(sample, dict):
+			target = sample.get("target", sample)
+		else:
+			raise TypeError(
+				"dataset samples must be tuples/lists with targets or dicts containing labels"
+			)
+
+		if not isinstance(target, dict) or "label" not in target:
+			raise KeyError("dataset targets must contain a 'label' entry")
+
+		counts[int(target["label"])] += 1
+
+	labels = sorted(counts)
+	values = [counts[label] for label in labels]
+
+	def _resolve_label_name(label: int) -> str:
+		if isinstance(class_names, dict):
+			return str(class_names.get(label, label))
+		if isinstance(class_names, list) and 0 <= label < len(class_names):
+			return str(class_names[label])
+		if hasattr(dataset, "get_class_name"):
+			try:
+				return str(dataset.get_class_name(label))
+			except Exception:
+				pass
+		return str(label)
+
+	if not labels:
+		raise ValueError("dataset does not contain any labels")
+
+	x_labels = [_resolve_label_name(label) for label in labels]
+
+	fig_width = max(6, len(labels) * 0.75)
+	fig, ax = plt.subplots(figsize=(fig_width, 4.5))
+	bars = ax.bar(x_labels, values, color="#4C78A8")
+	ax.set_title(title)
+	ax.set_xlabel("Class")
+	ax.set_ylabel("Count")
+	ax.tick_params(axis="x", rotation=45)
+	ax.bar_label(bars, padding=3)
+	ax.set_ylim(0, max(values) * 1.15)
+	fig.tight_layout()
 	plt.show()
