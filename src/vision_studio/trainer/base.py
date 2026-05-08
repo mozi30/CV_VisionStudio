@@ -139,6 +139,17 @@ class Trainer(ABC):
         checkpoint = torch.load(str(path), map_location=self.device)
         model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+        self._move_optimizer_state_to_device()
         self.current_epoch = checkpoint.get("current_epoch", 0)
         self.global_step = checkpoint.get("global_step", 0)
         return checkpoint
+
+    def _move_optimizer_state_to_device(self) -> None:
+        """Move optimizer state tensors to the trainer device.
+
+        This prevents device mismatch errors after loading checkpoints.
+        """
+        for state in self.optimizer.state.values():
+            for key, value in state.items():
+                if isinstance(value, Tensor):
+                    state[key] = value.to(self.device)
