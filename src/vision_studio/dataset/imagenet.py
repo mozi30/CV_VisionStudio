@@ -95,6 +95,13 @@ class ImageNetClassificationDataset(Dataset):
                 image = image / 255.0
 
         return image, target
+    
+    def get_class_sample_counts(self) -> dict[int, int] | None:
+        """Return a mapping from class id to sample count, or None if not available."""
+        counts: dict[int, int] = {idx: 0 for idx in range(len(self.class_names))}
+        for _, label in self.image_paths:
+            counts[label] += 1
+        return counts
 
     def get_num_classes(self) -> int:
         """Return the number of classes in the dataset."""

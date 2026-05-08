@@ -14,6 +14,11 @@ class Dataset(ABC):
     def __getitem__(self, index: int) -> tuple[Any, dict[str, Any]]:
         """Return one sample and its target."""
         raise NotImplementedError
+    
+    @abstractmethod
+    def get_class_sample_counts(self) -> dict[int, int] | None:
+        """Return a mapping from class id to sample count, or None if not available."""
+        raise NotImplementedError
 
     @abstractmethod
     def get_num_classes(self) -> int:
