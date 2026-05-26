@@ -83,6 +83,8 @@
 <!--
   ACTION REQUIRED: The content in this section represents placeholders.
   Fill them out with the right functional requirements.
+  Include security, dependency, error-handling, AI-assistance, and release-gate
+  requirements where applicable.
 -->
 
 ### Functional Requirements
@@ -97,6 +99,30 @@
 
 - **FR-006**: System MUST authenticate users via [NEEDS CLARIFICATION: auth method not specified - email/password, SSO, OAuth?]
 - **FR-007**: System MUST retain user data for [NEEDS CLARIFICATION: retention period not specified]
+
+### Security Requirements *(include if feature touches trust boundaries or sensitive data)*
+
+- **SEC-001**: [Trust boundary, secret handling, authentication, authorization, or logging requirement]
+- **SEC-002**: [Input validation, sensitive data handling, or vulnerability review requirement]
+
+### Dependency Requirements *(include if dependencies change)*
+
+- **DEP-001**: [Dependency purpose, standard-library alternative, license, security, version, and removal strategy]
+
+### Error Handling Requirements *(mandatory)*
+
+- **ERR-001**: [Expected failure mode, safe user message, internal diagnostic, retry, timeout, or cleanup behavior]
+- **ERR-002**: [Error path that must be tested]
+
+### AI and Release Requirements *(mandatory if AI assists or feature is releasable)*
+
+- **AI-001**: [AI-generated artifact review, external fact verification, or adversarial review requirement]
+- **REL-001**: [Required test, lint, format, security, dependency, documentation, release note, migration, rollback, risk, or owner approval gate]
+
+### Non-Functional Requirements *(mandatory)*
+
+- **NFR-001**: [Performance, reliability, security, privacy, or maintainability requirement]
+- **NFR-002**: [Observability, reproducibility, or operational constraint]
 
 ### Key Entities *(include if feature involves data)*
 
@@ -116,6 +142,20 @@
 - **SC-002**: [Measurable metric, e.g., "System handles 1000 concurrent users without degradation"]
 - **SC-003**: [User satisfaction metric, e.g., "90% of users successfully complete primary task on first attempt"]
 - **SC-004**: [Business metric, e.g., "Reduce support tickets related to [X] by 50%"]
+
+## Supplemental Governance Checklist *(mandatory)*
+
+<!--
+  ACTION REQUIRED: Capture applicable supplemental constitution gates before implementation.
+-->
+
+| Gate | Applicability | Planned Evidence |
+|------|---------------|------------------|
+| Security reviewed | [Yes/No + rationale] | [Review/test/waiver] |
+| Dependencies justified | [Yes/No + rationale] | [Review/lockfile/version policy] |
+| Errors specified and tested | [Yes/No + rationale] | [Test/review evidence] |
+| AI output reviewed | [Yes/No + rationale] | [Human/adversarial review] |
+| Release gates passed | [Yes/No + rationale] | [Command/checklist/approval] |
 
 ## Assumptions
 

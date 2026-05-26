@@ -15,6 +15,8 @@
   - Feature requirements from spec.md
   - Technical context from plan.md
   - Implementation details from tasks.md
+  - Constitution requirements for security, dependency management, error
+    handling, AI usage, release gates, and human-owner acceptance
   
   DO NOT keep these sample items in the generated checklist file.
   ============================================================================
@@ -22,15 +24,15 @@
 
 ## [Category 1]
 
-- [ ] CHK001 First checklist item with clear action
-- [ ] CHK002 Second checklist item
-- [ ] CHK003 Third checklist item
+- [ ] CHK001 Security-sensitive behavior, trust boundaries, and secret handling are reviewed
+- [ ] CHK002 Dependencies are justified, maintained, license-compatible, and vulnerability-triaged
+- [ ] CHK003 Failure modes, error paths, retries, timeouts, cleanup, and diagnostics are specified and tested
 
 ## [Category 2]
 
-- [ ] CHK004 Another category item
-- [ ] CHK005 Item with specific criteria
-- [ ] CHK006 Final item in this category
+- [ ] CHK004 AI-generated artifacts and external claims are reviewed by a human owner
+- [ ] CHK005 Tests, linting, formatting, security checks, dependency checks, documentation, and release notes are complete
+- [ ] CHK006 Known risks, migrations, rollback or recovery guidance, waivers, and human-owner approval are recorded
 
 ## Notes
 

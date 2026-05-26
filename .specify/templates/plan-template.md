@@ -40,7 +40,31 @@
 
 *GATE: Must pass before Phase 0 research. Re-check after Phase 1 design.*
 
-[Gates determined based on constitution file]
+**Security Constitution**: Identify trust boundaries, secret handling,
+authentication, authorization, user-controlled data, logging risks, and required
+security review or waiver.
+
+**Dependency Management Constitution**: List new or changed dependencies,
+standard-library alternatives considered, maintenance status, license
+compatibility, vulnerability status, version policy, and removal strategy for
+critical-path dependencies.
+
+**Error Handling Constitution**: Specify expected failure modes, error categories,
+safe user-facing messages, internal diagnostics, bounded retries, explicit
+timeouts, partial failure behavior, cleanup behavior, and error-path tests.
+
+**AI Usage Constitution**: Record AI contribution roles used for the feature,
+external facts that require verification, human review requirements, and any
+security-sensitive AI-generated output requiring adversarial review.
+
+**Release Gates Constitution**: List required tests, linting, formatting, type
+checks where applicable, security checks, dependency checks, migration checks,
+documentation, release notes, rollback or recovery guidance, known risk
+acceptance, and human-owner approval.
+
+**Unified Acceptance Rule**: Confirm the feature can satisfy: Security reviewed
+→ Dependencies justified → Errors specified and tested → AI output reviewed →
+Release gates passed → Human owner accepted.
 
 ## Project Structure
 

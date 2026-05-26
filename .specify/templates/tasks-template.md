@@ -9,7 +9,9 @@ description: "Task list template for feature implementation"
 
 **Prerequisites**: plan.md (required), spec.md (required for user stories), research.md, data-model.md, contracts/
 
-**Tests**: The examples below include test tasks. Tests are OPTIONAL - only include them if explicitly requested in the feature specification.
+**Governance**: Implementation tasks must include applicable security,
+dependency, error-handling, AI-review, and release-gate work required by the
+supplemental constitution.
 
 **Organization**: Tasks are grouped by user story to enable independent implementation and testing of each story.
 
@@ -35,6 +37,8 @@ description: "Task list template for feature implementation"
   - Feature requirements from plan.md
   - Entities from data-model.md
   - Endpoints from contracts/
+  - Security, dependency, error-handling, AI-review, and release-gate requirements
+    required by the supplemental constitution
 
   Tasks MUST be organized by user story so each story can be:
   - Implemented independently
@@ -51,7 +55,7 @@ description: "Task list template for feature implementation"
 
 - [ ] T001 Create project structure per implementation plan
 - [ ] T002 Initialize [language] project with [framework] dependencies
-- [ ] T003 [P] Configure linting and formatting tools
+- [ ] T003 [P] Configure required tests, linting, formatting, and release-gate commands
 
 ---
 
@@ -69,6 +73,9 @@ Examples of foundational tasks (adjust based on your project):
 - [ ] T007 Create base models/entities that all stories depend on
 - [ ] T008 Configure error handling and logging infrastructure
 - [ ] T009 Setup environment configuration management
+- [ ] T010 Document trust boundaries, secret handling, and sensitive logging constraints
+- [ ] T011 [P] Review dependency additions, licenses, vulnerabilities, version policy, and removal strategies
+- [ ] T012 [P] Define expected error categories, retries, timeouts, cleanup behavior, and diagnostics
 
 **Checkpoint**: Foundation ready - user story implementation can now begin in parallel
 
@@ -80,21 +87,23 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 1 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 1 ⚠️
 
-> **NOTE: Write these tests FIRST, ensure they FAIL before implementation**
+> **NOTE: Include tests for functional behavior plus applicable security,
+> dependency integration, and error paths.**
 
-- [ ] T010 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T011 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T013 [P] [US1] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T014 [P] [US1] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T015 [P] [US1] Error-path test for [failure mode] in tests/unit/test_[name].py
+- [ ] T016 [P] [US1] Security or input-validation test for [trust boundary] in tests/unit/test_[name].py
 
 ### Implementation for User Story 1
 
-- [ ] T012 [P] [US1] Create [Entity1] model in src/models/[entity1].py
-- [ ] T013 [P] [US1] Create [Entity2] model in src/models/[entity2].py
-- [ ] T014 [US1] Implement [Service] in src/services/[service].py (depends on T012, T013)
-- [ ] T015 [US1] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T016 [US1] Add validation and error handling
-- [ ] T017 [US1] Add logging for user story 1 operations
+- [ ] T017 [P] [US1] Create [Entity1] model in src/models/[entity1].py
+- [ ] T018 [P] [US1] Create [Entity2] model in src/models/[entity2].py
+- [ ] T019 [US1] Implement [Service] in src/services/[service].py with explicit error handling
+- [ ] T020 [US1] Implement [endpoint/feature] in src/[location]/[file].py with input validation and safe logging
+- [ ] T021 [US1] Document dependency, AI-review, and release-gate evidence for user story 1
 
 **Checkpoint**: At this point, User Story 1 should be fully functional and testable independently
 
@@ -106,17 +115,19 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 2 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 2 ⚠️
 
-- [ ] T018 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T019 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T022 [P] [US2] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T023 [P] [US2] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T024 [P] [US2] Error-path or security test for [scenario] in tests/unit/test_[name].py
 
 ### Implementation for User Story 2
 
-- [ ] T020 [P] [US2] Create [Entity] model in src/models/[entity].py
-- [ ] T021 [US2] Implement [Service] in src/services/[service].py
-- [ ] T022 [US2] Implement [endpoint/feature] in src/[location]/[file].py
-- [ ] T023 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T025 [P] [US2] Create [Entity] model in src/models/[entity].py
+- [ ] T026 [US2] Implement [Service] in src/services/[service].py with explicit error handling
+- [ ] T027 [US2] Implement [endpoint/feature] in src/[location]/[file].py with input validation and safe logging
+- [ ] T028 [US2] Integrate with User Story 1 components (if needed)
+- [ ] T029 [US2] Document dependency, AI-review, and release-gate evidence for user story 2
 
 **Checkpoint**: At this point, User Stories 1 AND 2 should both work independently
 
@@ -128,16 +139,18 @@ Examples of foundational tasks (adjust based on your project):
 
 **Independent Test**: [How to verify this story works on its own]
 
-### Tests for User Story 3 (OPTIONAL - only if tests requested) ⚠️
+### Tests for User Story 3 ⚠️
 
-- [ ] T024 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
-- [ ] T025 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T030 [P] [US3] Contract test for [endpoint] in tests/contract/test_[name].py
+- [ ] T031 [P] [US3] Integration test for [user journey] in tests/integration/test_[name].py
+- [ ] T032 [P] [US3] Error-path or security test for [scenario] in tests/unit/test_[name].py
 
 ### Implementation for User Story 3
 
-- [ ] T026 [P] [US3] Create [Entity] model in src/models/[entity].py
-- [ ] T027 [US3] Implement [Service] in src/services/[service].py
-- [ ] T028 [US3] Implement [endpoint/feature] in src/[location]/[file].py
+- [ ] T033 [P] [US3] Create [Entity] model in src/models/[entity].py
+- [ ] T034 [US3] Implement [Service] in src/services/[service].py with explicit error handling
+- [ ] T035 [US3] Implement [endpoint/feature] in src/[location]/[file].py with input validation and safe logging
+- [ ] T036 [US3] Document dependency, AI-review, and release-gate evidence for user story 3
 
 **Checkpoint**: All user stories should now be independently functional
 
@@ -152,10 +165,14 @@ Examples of foundational tasks (adjust based on your project):
 **Purpose**: Improvements that affect multiple user stories
 
 - [ ] TXXX [P] Documentation updates in docs/
-- [ ] TXXX Code cleanup and refactoring
+- [ ] TXXX Security review and risk waiver documentation if needed
+- [ ] TXXX Dependency vulnerability and license review
+- [ ] TXXX Error-path and cleanup verification
+- [ ] TXXX AI-generated output review and external fact verification
+- [ ] TXXX Release notes, migration notes, and rollback or recovery guidance
 - [ ] TXXX Performance optimization across all stories
-- [ ] TXXX [P] Additional unit tests (if requested) in tests/unit/
-- [ ] TXXX Security hardening
+- [ ] TXXX [P] Additional tests in tests/ for security, error, or release-critical behavior
+- [ ] TXXX Run required tests, linting, formatting, type checks where applicable, security checks, and dependency checks
 - [ ] TXXX Run quickstart.md validation
 
 ---
@@ -179,10 +196,13 @@ Examples of foundational tasks (adjust based on your project):
 
 ### Within Each User Story
 
-- Tests (if included) MUST be written and FAIL before implementation
+- Required tests before implementation
 - Models before services
 - Services before endpoints
-- Core implementation before integration
+- Error contracts before error-handling implementation
+- Security and dependency reviews before release acceptance
+- AI-generated output review before acceptance
+- Release gates before human-owner approval
 - Story complete before moving to next priority
 
 ### Parallel Opportunities
@@ -246,7 +266,11 @@ With multiple developers:
 - [P] tasks = different files, no dependencies
 - [Story] label maps task to specific user story for traceability
 - Each user story should be independently completable and testable
-- Verify tests fail before implementing
+- Run formatter before review
+- Run linter before acceptance
+- Triage dependency vulnerabilities before release
+- Document security, dependency, error-handling, AI, and release exceptions
+- Confirm human-owner approval before release
 - Commit after each task or logical group
 - Stop at any checkpoint to validate story independently
 - Avoid: vague tasks, same file conflicts, cross-story dependencies that break independence
