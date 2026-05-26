@@ -17,6 +17,11 @@ dependencies = [
     "wandb>=0.26.1",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
 [tool.setuptools.packages.find]
 where = ["src"]
 
