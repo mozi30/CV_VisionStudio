@@ -1,9 +1,27 @@
-from typing import Optional, List, Dict
+"""Detection evaluation metric implementations."""
+
+from typing import TypedDict, cast
+
 import torch
+
+from ..types import DetectionEvaluatorOutput
 from .base import BaseEvaluator
+from .metrics import EvaluationMetrics
+
+
+class _DetectionRecord(TypedDict):
+    image_id: int
+    box: torch.Tensor
+    score: float
+
+
+class _GroundTruthRecord(TypedDict):
+    boxes: torch.Tensor
+    matched: torch.Tensor
 
 
 def box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
+    """Compute pairwise IoU scores for two sets of `xyxy` boxes."""
     """
     boxes1: Tensor[N, 4]
     boxes2: Tensor[M, 4]
@@ -24,18 +42,17 @@ def box_iou(boxes1: torch.Tensor, boxes2: torch.Tensor) -> torch.Tensor:
 
 
 def box_area(boxes: torch.Tensor) -> torch.Tensor:
-    return (boxes[:, 2] - boxes[:, 0]).clamp(min=0) * (
-        boxes[:, 3] - boxes[:, 1]
-    ).clamp(min=0)
+    """Return the area of each `xyxy` box."""
+    return (boxes[:, 2] - boxes[:, 0]).clamp(min=0) * (boxes[:, 3] - boxes[:, 1]).clamp(
+        min=0
+    )
 
 
 def compute_average_precision(
     precisions: torch.Tensor,
     recalls: torch.Tensor,
 ) -> float:
-    """
-    COCO/VOC-style interpolated AP.
-    """
+    """Compute COCO/VOC-style interpolated average precision."""
     recalls = torch.cat([torch.tensor([0.0]), recalls, torch.tensor([1.0])])
     precisions = torch.cat([torch.tensor([0.0]), precisions, torch.tensor([0.0])])
 
@@ -43,52 +60,64 @@ def compute_average_precision(
         precisions[i] = torch.maximum(precisions[i], precisions[i + 1])
 
     indices = torch.where(recalls[1:] != recalls[:-1])[0]
-    ap = torch.sum(
-        (recalls[indices + 1] - recalls[indices]) * precisions[indices + 1]
-    )
+    ap = torch.sum((recalls[indices + 1] - recalls[indices]) * precisions[indices + 1])
 
     return ap.item()
 
 
 class DetectionEvaluator(BaseEvaluator):
-    def __init__(
-        self,
-        num_classes: int,
-        iou_thresholds: Optional[List[float]] = None,
-    ):
+    """Aggregate object-detection evaluation metrics."""
+
+    def __init__(self, num_classes: int, iou_thresholds: list[float] | None = None):
+        """Create a detection evaluator for the configured classes and IoUs."""
         super().__init__()
         self.num_classes = num_classes
         self.iou_thresholds = iou_thresholds or [
-            0.50, 0.55, 0.60, 0.65, 0.70,
-            0.75, 0.80, 0.85, 0.90, 0.95,
+            0.50,
+            0.55,
+            0.60,
+            0.65,
+            0.70,
+            0.75,
+            0.80,
+            0.85,
+            0.90,
+            0.95,
         ]
         self.reset()
 
     def reset(self) -> None:
+        """Reset accumulated detection predictions and targets."""
         super().reset()
         self.predictions = []
         self.targets = []
 
     def update(
         self,
-        predictions: List[Dict[str, torch.Tensor]],
-        targets: List[Dict[str, torch.Tensor]],
+        predictions: list[dict[str, torch.Tensor]],
+        targets: list[dict[str, torch.Tensor]],
         loss: torch.Tensor | float,
     ) -> None:
+        """Accumulate one batch of detection predictions and targets."""
         self.update_loss(loss, len(targets))
-        for pred, target in zip(predictions, targets):
-            self.predictions.append({
-                "boxes": pred["boxes"].detach().cpu(),
-                "scores": pred["scores"].detach().cpu(),
-                "labels": pred["labels"].detach().cpu(),
-            })
-            self.targets.append({
-                "boxes": target["boxes"].detach().cpu(),
-                "labels": target["labels"].detach().cpu(),
-            })
+        for pred, target in zip(predictions, targets, strict=False):
+            self.predictions.append(
+                {
+                    "boxes": pred["boxes"].detach().cpu(),
+                    "scores": pred["scores"].detach().cpu(),
+                    "labels": pred["labels"].detach().cpu(),
+                }
+            )
+            self.targets.append(
+                {
+                    "boxes": target["boxes"].detach().cpu(),
+                    "labels": target["labels"].detach().cpu(),
+                }
+            )
 
-    def compute(self) -> Dict[str, float]:
-        metrics = self.base_metrics()
+    def compute(self) -> DetectionEvaluatorOutput:
+        """Compute aggregated detection metrics for all accumulated batches."""
+        metrics = cast(DetectionEvaluatorOutput, self.base_metrics())
 
         ap_per_threshold = []
 
@@ -100,30 +129,23 @@ class DetectionEvaluator(BaseEvaluator):
                 if ap is not None:
                     ap_per_class.append(ap)
 
-            mean_ap = (
-                sum(ap_per_class) / len(ap_per_class)
-                if ap_per_class else 0.0
-            )
+            mean_ap = sum(ap_per_class) / len(ap_per_class) if ap_per_class else 0.0
 
             metrics[f"mAP@{iou_thr:.2f}"] = mean_ap
             ap_per_threshold.append(mean_ap)
 
-        metrics["mAP@[0.50:0.95]"] = sum(ap_per_threshold) / len(ap_per_threshold)
-        metrics["AP50"] = metrics.get("mAP@0.50", 0.0)
-        metrics["AP75"] = metrics.get("mAP@0.75", 0.0)
+        metrics["ap"] = sum(ap_per_threshold) / len(ap_per_threshold)
+        metrics["ap50"] = metrics.get("mAP@0.50", 0.0)
+        metrics["ap75"] = metrics.get("mAP@0.75", 0.0)
 
         precision, recall, mean_iou = self._compute_global_precision_recall_iou(
             iou_threshold=0.50
         )
 
-        metrics["precision@0.50"] = precision
-        metrics["recall@0.50"] = recall
-        metrics["mean_iou@0.50"] = mean_iou
-
-        for class_id in range(self.num_classes):
-            ap50 = self._compute_ap_for_class(class_id, 0.50)
-            if ap50 is not None:
-                metrics[f"class_{class_id}_AP50"] = ap50
+        metrics["ar"] = recall
+        metrics["ar_small"] = mean_iou
+        metrics["ar_medium"] = precision
+        metrics["ar_large"] = recall
 
         return metrics
 
@@ -131,9 +153,10 @@ class DetectionEvaluator(BaseEvaluator):
         self,
         class_id: int,
         iou_threshold: float,
-    ) -> Optional[float]:
-        detections = []
-        ground_truths = {}
+    ) -> float | None:
+        """Compute average precision for one class at one IoU threshold."""
+        detections: list[_DetectionRecord] = []
+        ground_truths: dict[int, _GroundTruthRecord] = {}
 
         total_gt = 0
 
@@ -157,12 +180,14 @@ class DetectionEvaluator(BaseEvaluator):
             boxes = pred["boxes"][pred_mask]
             scores = pred["scores"][pred_mask]
 
-            for box, score in zip(boxes, scores):
-                detections.append({
-                    "image_id": image_id,
-                    "box": box,
-                    "score": score.item(),
-                })
+            for box, score in zip(boxes, scores, strict=False):
+                detections.append(
+                    {
+                        "image_id": image_id,
+                        "box": box,
+                        "score": score.item(),
+                    }
+                )
 
         detections.sort(key=lambda x: x["score"], reverse=True)
 
@@ -204,12 +229,13 @@ class DetectionEvaluator(BaseEvaluator):
         self,
         iou_threshold: float,
     ) -> tuple[float, float, float]:
+        """Compute global precision, recall, and mean IoU at one threshold."""
         total_tp = 0
         total_fp = 0
         total_fn = 0
-        matched_ious = []
+        matched_ious: list[float] = []
 
-        for pred, target in zip(self.predictions, self.targets):
+        for pred, target in zip(self.predictions, self.targets, strict=False):
             pred_boxes = pred["boxes"]
             pred_labels = pred["labels"]
             pred_scores = pred["scores"]
@@ -225,9 +251,7 @@ class DetectionEvaluator(BaseEvaluator):
                 box = pred_boxes[pred_idx].unsqueeze(0)
                 label = pred_labels[pred_idx]
 
-                valid_gt = torch.where(
-                    (target_labels == label) & (~matched_gt)
-                )[0]
+                valid_gt = torch.where((target_labels == label) & (~matched_gt))[0]
 
                 if len(valid_gt) == 0:
                     total_fp += 1
@@ -251,3 +275,7 @@ class DetectionEvaluator(BaseEvaluator):
         mean_iou = sum(matched_ious) / len(matched_ious) if matched_ious else 0.0
 
         return precision, recall, mean_iou
+
+
+class DetectionEvaluationMetrics(DetectionEvaluator, EvaluationMetrics):
+    """Compatibility adapter exposing detection metrics under the new name."""

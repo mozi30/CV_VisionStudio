@@ -87,21 +87,21 @@
 
 ### Tests for User Story 2 ⚠️
 
-- [ ] T038 [P] [US2] Add Evaluator contract tests for standalone evaluation and no optimizer updates in tests/unit/evaluator/test_evaluator.py
-- [ ] T039 [P] [US2] Add ClassificationEvaluationMetrics input validation and metric aggregation tests in tests/unit/evaluator/test_evaluation_metrics.py
-- [ ] T040 [P] [US2] Add DetectionEvaluationMetrics input validation and metric aggregation tests in tests/unit/evaluator/test_evaluation_metrics.py
-- [ ] T041 [P] [US2] Add explicit LossEvaluationMetrics tests and missing-loss error tests in tests/unit/evaluator/test_evaluation_metrics.py
-- [ ] T042 [P] [US2] Add Evaluator error tests for broken model, empty evaluation Dataset, missing target fields, and missing prediction fields in tests/unit/evaluator/test_evaluator.py
+- [x] T038 [P] [US2] Add Evaluator contract tests for standalone evaluation and no optimizer updates in tests/unit/evaluator/test_evaluator.py
+- [x] T039 [P] [US2] Add ClassificationEvaluationMetrics input validation and metric aggregation tests in tests/unit/evaluator/test_evaluation_metrics.py
+- [x] T040 [P] [US2] Add DetectionEvaluationMetrics input validation and metric aggregation tests in tests/unit/evaluator/test_evaluation_metrics.py
+- [x] T041 [P] [US2] Add explicit LossEvaluationMetrics tests and missing-loss error tests in tests/unit/evaluator/test_evaluation_metrics.py
+- [x] T042 [P] [US2] Add Evaluator error tests for broken model, empty evaluation Dataset, missing target fields, and missing prediction fields in tests/unit/evaluator/test_evaluator.py
 
 ### Implementation for User Story 2
 
-- [ ] T043 [US2] Implement Evaluator with standalone and training-time evaluation entrypoints in src/vision_studio/evaluate/evaluator.py
-- [ ] T044 [US2] Implement Evaluator Dataset batch movement, model inference, loss extraction, postprocess handling, and EvaluationMetrics update orchestration in src/vision_studio/evaluate/evaluator.py
-- [ ] T045 [US2] Implement EvaluationMetrics base contract with task type, required inputs, reset, update, and compute behavior in src/vision_studio/evaluate/metrics.py
-- [ ] T046 [US2] Move or adapt LossEvaluator into explicit LossEvaluationMetrics with clear missing-loss errors in src/vision_studio/evaluate/metrics.py and src/vision_studio/evaluate/base.py
-- [ ] T047 [US2] Rename or adapt ClassificationEvaluator into ClassificationEvaluationMetrics with logits/probabilities, labels, target labels, and unsupported metric validation in src/vision_studio/evaluate/classication.py
-- [ ] T048 [US2] Rename or adapt DetectionEvaluator into DetectionEvaluationMetrics with boxes/scores/labels validation and metric result contract in src/vision_studio/evaluate/detection.py
-- [ ] T049 [US2] Update evaluate package exports for Evaluator, EvaluationMetrics, classification metrics, detection metrics, and loss metrics in src/vision_studio/evaluate/__init__.py
+- [x] T043 [US2] Implement Evaluator with standalone and training-time evaluation entrypoints in src/vision_studio/evaluate/evaluator.py
+- [x] T044 [US2] Implement Evaluator Dataset batch movement, model inference, loss extraction, postprocess handling, and EvaluationMetrics update orchestration in src/vision_studio/evaluate/evaluator.py
+- [x] T045 [US2] Implement EvaluationMetrics base contract with task type, required inputs, reset, update, and compute behavior in src/vision_studio/evaluate/metrics.py
+- [x] T046 [US2] Move or adapt LossEvaluator into explicit LossEvaluationMetrics with clear missing-loss errors in src/vision_studio/evaluate/metrics.py and src/vision_studio/evaluate/base.py
+- [x] T047 [US2] Rename or adapt ClassificationEvaluator into ClassificationEvaluationMetrics with logits/probabilities, labels, target labels, and unsupported metric validation in src/vision_studio/evaluate/classication.py
+- [x] T048 [US2] Rename or adapt DetectionEvaluator into DetectionEvaluationMetrics with boxes/scores/labels validation and metric result contract in src/vision_studio/evaluate/detection.py
+- [x] T049 [US2] Update evaluate package exports for Evaluator, EvaluationMetrics, classification metrics, detection metrics, and loss metrics in src/vision_studio/evaluate/__init__.py
 - [ ] T050 [US2] Update Evaluator and EvaluationMetrics contract notes in specs/001-decouple-training-evaluation/contracts/evaluator-contract.md and specs/001-decouple-training-evaluation/contracts/evaluation-metrics-contract.md
 
 **Checkpoint**: User Story 2 is independently functional for standalone evaluation.
@@ -116,10 +116,10 @@
 
 ### Tests for User Story 3 ⚠️
 
-- [ ] T051 [P] [US3] Add reporter contract tests for shared start/log/finish operations in tests/unit/reporting/test_reporting_modes.py
-- [ ] T052 [P] [US3] Add WandB reporter failure tests for unavailable initialization and no secret leakage in tests/unit/reporting/test_reporting_modes.py
-- [ ] T053 [P] [US3] Add local live-plot fallback tests for warning and logging-only continuation in tests/unit/reporting/test_reporting_modes.py
-- [ ] T054 [P] [US3] Add Trainer and Evaluator reporter integration tests in tests/integration/training/test_training_evaluation_workflow.py
+- [x] T051 [P] [US3] Add reporter contract tests for shared start/log/finish operations in tests/unit/reporting/test_reporting_modes.py
+- [x] T052 [P] [US3] Add WandB reporter failure tests for unavailable initialization and no secret leakage in tests/unit/reporting/test_wandb_reporter.py
+- [x] T053 [P] [US3] Add local live-plot fallback tests for warning and logging-only continuation in tests/unit/reporting/test_reporting_modes.py
+- [x] T054 [P] [US3] Add Trainer and Evaluator reporter integration tests in tests/integration/training/test_reporting_integration.py
 
 ### Implementation for User Story 3
 
