@@ -10,6 +10,7 @@ import torch
 from torch import Tensor
 
 from vision_studio.models.base import BaseModel
+from vision_studio.reporting import BaseReporter, LoggingReporter
 from vision_studio.types import EvaluatorOutput
 
 Batch = tuple[Tensor, dict[str, Any]]
@@ -31,10 +32,16 @@ class Evaluator(ABC):
 class LoopEvaluator(Evaluator):
     """Default evaluator that iterates a dataset and updates metrics."""
 
-    def __init__(self, metrics: Any, device: torch.device | str = "cpu") -> None:
+    def __init__(
+        self,
+        metrics: Any,
+        device: torch.device | str = "cpu",
+        reporter: BaseReporter | None = None,
+    ) -> None:
         """Create a loop evaluator for the provided metrics implementation."""
         self.metrics = metrics
         self.device = torch.device(device)
+        self.reporter = reporter or LoggingReporter()
 
     @torch.no_grad()
     def evaluate(
@@ -44,6 +51,7 @@ class LoopEvaluator(Evaluator):
     ) -> EvaluatorOutput:
         """Evaluate a model over a dataset and return aggregated metrics."""
         self.metrics.reset()
+        self.reporter.start()
         was_training = model.training
         model.eval()
 
@@ -63,4 +71,7 @@ class LoopEvaluator(Evaluator):
 
         if was_training:
             model.train()
-        return self.metrics.compute()
+        result = self.metrics.compute()
+        self.reporter.log({"evaluation/loss": result["loss"]})
+        self.reporter.finish()
+        return result

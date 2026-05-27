@@ -62,9 +62,7 @@ class LossEvaluationMetrics(EvaluationMetrics):
         """Infer batch size from prediction or target structures."""
         if isinstance(targets, torch.Tensor):
             return (
-                int(targets.shape[0])
-                if targets.ndim > 0
-                else int(targets.numel() or 1)
+                int(targets.shape[0]) if targets.ndim > 0 else int(targets.numel() or 1)
             )
         if isinstance(targets, dict):
             for value in targets.values():

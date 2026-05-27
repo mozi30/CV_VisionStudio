@@ -123,13 +123,13 @@
 
 ### Implementation for User Story 3
 
-- [ ] T055 [US3] Implement WandbReporter using fatal initialization/logging failure semantics in src/vision_studio/reporting/wandb.py
-- [ ] T056 [US3] Implement LivePlotReporter with warning fallback to logging-only behavior in src/vision_studio/reporting/live_plot.py
-- [ ] T057 [US3] Integrate BaseReporter usage into Trainer metric logging in src/vision_studio/trainer/trainer.py
-- [ ] T058 [US3] Integrate BaseReporter usage into Evaluator metric logging in src/vision_studio/evaluate/evaluator.py
-- [ ] T059 [US3] Ensure local and logging-only reporters never require or transmit WandB credentials in src/vision_studio/reporting/logging.py and src/vision_studio/reporting/live_plot.py
-- [ ] T060 [US3] Update reporting exports in src/vision_studio/reporting/__init__.py
-- [ ] T061 [US3] Update reporting contract implementation notes in specs/001-decouple-training-evaluation/contracts/reporting-contract.md
+- [x] T055 [US3] Implement WandbReporter using fatal initialization/logging failure semantics in src/vision_studio/reporting/wandb.py
+- [x] T056 [US3] Implement LivePlotReporter with warning fallback to logging-only behavior in src/vision_studio/reporting/live_plot.py
+- [x] T057 [US3] Integrate BaseReporter usage into Trainer metric logging in src/vision_studio/trainer/trainer.py
+- [x] T058 [US3] Integrate BaseReporter usage into Evaluator metric logging in src/vision_studio/evaluate/evaluator.py
+- [x] T059 [US3] Ensure local and logging-only reporters never require or transmit WandB credentials in src/vision_studio/reporting/logging.py and src/vision_studio/reporting/live_plot.py
+- [x] T060 [US3] Update reporting exports in src/vision_studio/reporting/__init__.py
+- [x] T061 [US3] Update reporting contract implementation notes in specs/001-decouple-training-evaluation/contracts/reporting-contract.md
 
 **Checkpoint**: User Story 3 is independently functional for all reporting modes.
 

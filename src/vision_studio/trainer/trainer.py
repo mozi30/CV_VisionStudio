@@ -9,6 +9,7 @@ import torch
 from torch import Tensor
 
 from vision_studio.models.base import BaseModel
+from vision_studio.reporting import BaseReporter, LoggingReporter
 from vision_studio.types import EvaluatorOutput
 
 from .base import Trainer
@@ -25,10 +26,12 @@ class VisionTrainer(Trainer):
         evaluator: Any | None = None,
         device: torch.device | str = "cpu",
         settings=None,
+        reporter: BaseReporter | None = None,
     ) -> None:
         """Initialize a Trainer with an optional default Evaluator."""
         super().__init__(optimizer=optimizer, device=device, settings=settings)
         self.default_evaluator = evaluator
+        self.reporter = reporter or LoggingReporter()
 
     def fit(
         self,
@@ -42,22 +45,32 @@ class VisionTrainer(Trainer):
         chosen_evaluator = (
             evaluator if evaluator is not None else self.default_evaluator
         )
-
         model.to(self.device)
         history: dict[str, list[EvaluatorOutput]] = {"train": [], "evaluation": []}
 
         for epoch in range(self.current_epoch, self.settings.epochs):
             self.current_epoch = epoch
+            self.reporter.start()
             train_metrics = self.train_epoch(model, train_loader)
             history["train"].append(train_metrics)
+            self.reporter.log(
+                {"train/loss": train_metrics["loss"], "epoch": epoch},
+                step=self.global_step,
+            )
 
             if chosen_evaluator is None or val_loader is None:
                 if chosen_evaluator is None:
                     self.warn("No Evaluator configured; evaluation skipped.")
+                self.reporter.finish()
                 continue
 
             evaluation_metrics = chosen_evaluator.evaluate(model, val_loader)
             history["evaluation"].append(evaluation_metrics)
+            self.reporter.log(
+                {"evaluation/loss": evaluation_metrics["loss"], "epoch": epoch},
+                step=self.global_step,
+            )
+            self.reporter.finish()
 
         return {
             "history": history,
