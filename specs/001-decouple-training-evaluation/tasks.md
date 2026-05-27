@@ -62,18 +62,18 @@
 
 ### Implementation for User Story 1
 
-- [ ] T026 [US1] Implement Trainer settings consumption, warnings, training-loss-only history, and no automatic LossEvaluationMetrics fallback in src/vision_studio/trainer/base.py
-- [ ] T027 [US1] Implement general concrete Trainer constructor and fit flow with optional constructor default Evaluator and per-run Evaluator override in src/vision_studio/trainer/trainer.py
-- [ ] T028 [US1] Migrate existing WandbTrainer behavior into general Trainer without WandB-only naming in src/vision_studio/trainer/trainer.py and reduce src/vision_studio/trainer/wandb_trainer.py to compatibility or deprecation behavior
-- [ ] T029 [US1] Remove trainer-owned evaluation loop and public validate/test methods from concrete trainer behavior in src/vision_studio/trainer/trainer.py and src/vision_studio/trainer/wandb_trainer.py
-- [ ] T030 [US1] Implement after-epoch Evaluator delegation and evaluation history collection in src/vision_studio/trainer/trainer.py
-- [ ] T031 [US1] Implement pre-run checks for checkpoint path existence, checkpoint monitor requirement, reporter availability, Evaluator availability, Dataset compatibility where determinable, and dry-run disabled default in src/vision_studio/trainer/base.py
-- [ ] T032 [US1] Implement no-checkpoint warning when checkpoint path is unset in src/vision_studio/trainer/base.py
-- [ ] T033 [US1] Implement latest checkpoint saving and explicit-monitor best checkpoint retention only when checkpoint path exists in src/vision_studio/trainer/base.py
+- [x] T026 [US1] Implement Trainer settings consumption, warnings, training-loss-only history, and no automatic LossEvaluationMetrics fallback in src/vision_studio/trainer/base.py
+- [x] T027 [US1] Implement general concrete Trainer constructor and fit flow with optional constructor default Evaluator and per-run Evaluator override in src/vision_studio/trainer/trainer.py
+- [x] T028 [US1] Migrate existing WandbTrainer behavior into general Trainer without WandB-only naming in src/vision_studio/trainer/trainer.py and reduce src/vision_studio/trainer/wandb_trainer.py to compatibility or deprecation behavior
+- [x] T029 [US1] Remove trainer-owned evaluation loop and public validate/test methods from concrete trainer behavior in src/vision_studio/trainer/trainer.py and src/vision_studio/trainer/wandb_trainer.py
+- [x] T030 [US1] Implement after-epoch Evaluator delegation and evaluation history collection in src/vision_studio/trainer/trainer.py
+- [x] T031 [US1] Implement pre-run checks for checkpoint path existence, checkpoint monitor requirement, reporter availability, Evaluator availability, Dataset compatibility where determinable, and dry-run disabled default in src/vision_studio/trainer/base.py
+- [x] T032 [US1] Implement no-checkpoint warning when checkpoint path is unset in src/vision_studio/trainer/base.py
+- [x] T033 [US1] Implement latest checkpoint saving and explicit-monitor best checkpoint retention only when checkpoint path exists in src/vision_studio/trainer/base.py
 - [ ] T034 [US1] Implement early stopping with explicit monitor metric and clear configuration errors in src/vision_studio/trainer/base.py
 - [ ] T035 [US1] Implement graceful KeyboardInterrupt/interruption handling in src/vision_studio/trainer/trainer.py
-- [ ] T036 [US1] Update Trainer package exports in src/vision_studio/trainer/__init__.py
-- [ ] T037 [US1] Update Trainer contract implementation notes in specs/001-decouple-training-evaluation/contracts/trainer-contract.md
+- [x] T036 [US1] Update Trainer package exports in src/vision_studio/trainer/__init__.py
+- [x] T037 [US1] Update Trainer contract implementation notes in specs/001-decouple-training-evaluation/contracts/trainer-contract.md
 
 **Checkpoint**: User Story 1 is fully functional and testable independently as the MVP.
 
@@ -143,9 +143,9 @@
 - [ ] T063 [P] Add migration notes for replacing trainer.validate/test usage with Evaluator and replacing old evaluator metric classes with EvaluationMetrics in specs/001-decouple-training-evaluation/quickstart.md
 - [ ] T064 [P] Record dependency review evidence for pytest and optional reporting/plotting dependencies in specs/001-decouple-training-evaluation/quickstart.md
 - [ ] T065 [P] Review src/vision_studio/types.py and docs for secret-safe error messages and no remote transmission in local/logging-only modes
-- [ ] T066 Run python -m pytest tests/unit tests/integration and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
-- [ ] T067 Run python -m ruff check src tests and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
-- [ ] T068 Run python -m black --check src tests and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
+- [x] T066 Run python -m pytest tests/unit tests/integration and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
+- [x] T067 Run python -m ruff check src tests and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
+- [x] T068 Run python -m black --check src tests and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
 - [ ] T069 Perform AI-generated artifact review for spec, plan, tasks, tests, and implementation in specs/001-decouple-training-evaluation/tasks.md
 - [ ] T070 Confirm human-owner acceptance and known risks for release in specs/001-decouple-training-evaluation/tasks.md
 
