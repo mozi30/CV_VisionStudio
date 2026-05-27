@@ -139,15 +139,15 @@
 
 **Purpose**: Verification, migration documentation, release readiness, and cleanup across all stories.
 
-- [ ] T062 [P] Update public usage examples for Trainer, Evaluator, EvaluationMetrics, Dataset, and reporters in specs/001-decouple-training-evaluation/quickstart.md
-- [ ] T063 [P] Add migration notes for replacing trainer.validate/test usage with Evaluator and replacing old evaluator metric classes with EvaluationMetrics in specs/001-decouple-training-evaluation/quickstart.md
-- [ ] T064 [P] Record dependency review evidence for pytest and optional reporting/plotting dependencies in specs/001-decouple-training-evaluation/quickstart.md
-- [ ] T065 [P] Review src/vision_studio/types.py and docs for secret-safe error messages and no remote transmission in local/logging-only modes
+- [x] T062 [P] Update public usage examples for Trainer, Evaluator, EvaluationMetrics, Dataset, and reporters in specs/001-decouple-training-evaluation/quickstart.md
+- [x] T063 [P] Add migration notes for replacing trainer.validate/test usage with Evaluator and replacing old evaluator metric classes with EvaluationMetrics in specs/001-decouple-training-evaluation/quickstart.md
+- [x] T064 [P] Record dependency review evidence for pytest and optional reporting/plotting dependencies in specs/001-decouple-training-evaluation/quickstart.md
+- [x] T065 [P] Review src/vision_studio/types.py and docs for secret-safe error messages and no remote transmission in local/logging-only modes
 - [x] T066 Run python -m pytest tests/unit tests/integration and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
 - [x] T067 Run python -m ruff check src tests and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
 - [x] T068 Run python -m black --check src tests and record failures or success in specs/001-decouple-training-evaluation/quickstart.md
-- [ ] T069 Perform AI-generated artifact review for spec, plan, tasks, tests, and implementation in specs/001-decouple-training-evaluation/tasks.md
-- [ ] T070 Confirm human-owner acceptance and known risks for release in specs/001-decouple-training-evaluation/tasks.md
+- [x] T069 Perform AI-generated artifact review for spec, plan, tasks, tests, and implementation in specs/001-decouple-training-evaluation/tasks.md
+- [x] T070 Confirm human-owner acceptance and known risks for release in specs/001-decouple-training-evaluation/tasks.md
 
 ---
 
