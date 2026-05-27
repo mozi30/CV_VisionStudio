@@ -1,3 +1,5 @@
+"""Base training abstractions and shared trainer helpers."""
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -9,22 +11,35 @@ import torch
 from PIL import Image
 from torch import Tensor
 from torch.optim import Optimizer
-from torchvision.transforms import functional as F
-from vision_studio.types import EvaluatorOutput
+from torchvision.transforms import functional
+
+from vision_studio.types import (
+    CheckpointError,
+    CheckpointInfo,
+    ConfigurationError,
+    EvaluatorOutput,
+    TrainerSettings,
+)
 
 Batch = tuple[Tensor, dict[str, Any]]
 
 
 class Trainer(ABC):
+    """Base training abstraction shared by concrete Trainer implementations."""
+
     def __init__(
         self,
         optimizer: Optimizer,
         device: torch.device | str = "cpu",
+        settings: TrainerSettings | None = None,
     ) -> None:
+        """Initialize shared Trainer state."""
         self.optimizer = optimizer
         self.device = torch.device(device)
+        self.settings = settings or TrainerSettings()
         self.current_epoch = 0
         self.global_step = 0
+        self.warnings: list[str] = []
 
     @abstractmethod
     def fit(
@@ -33,6 +48,7 @@ class Trainer(ABC):
         train_loader: Iterable[Batch],
         val_loader: Iterable[Batch] | None = None,
     ) -> dict[str, Any]:
+        """Run the full training workflow for a model and training dataset."""
         raise NotImplementedError
 
     @abstractmethod
@@ -41,24 +57,11 @@ class Trainer(ABC):
         model,
         train_loader: Iterable[Batch],
     ) -> EvaluatorOutput:
+        """Run one training epoch and return epoch-level training metrics."""
         raise NotImplementedError
-
-    @abstractmethod
-    def validate(
-        self,
-        model,
-        val_loader: Iterable[Batch],
-    ) -> EvaluatorOutput:
-        raise NotImplementedError
-
-    def test(
-        self,
-        model,
-        test_loader: Iterable[Batch],
-    ) -> EvaluatorOutput:
-        return self.validate(model, test_loader)
 
     def move_batch_to_device(self, batch: Batch) -> Batch:
+        """Normalize a batch and move tensors to the configured device."""
         if self._is_collated_batch(batch):
             inputs, targets = batch
         else:
@@ -96,7 +99,7 @@ class Trainer(ABC):
             if isinstance(input_item, Tensor):
                 collated_inputs.append(input_item)
             elif isinstance(input_item, Image.Image):
-                collated_inputs.append(F.to_tensor(input_item))
+                collated_inputs.append(functional.to_tensor(input_item))
             else:
                 collated_inputs.append(torch.as_tensor(input_item))
 
@@ -120,6 +123,7 @@ class Trainer(ABC):
         model,
         extra: dict[str, Any] | None = None,
     ) -> None:
+        """Save checkpoint data for the current Trainer state."""
         checkpoint = {
             "model_state_dict": model.state_dict(),
             "optimizer_state_dict": self.optimizer.state_dict(),
@@ -131,11 +135,71 @@ class Trainer(ABC):
 
         torch.save(checkpoint, str(path))
 
+    def validate_settings(self) -> None:
+        """Validate Trainer settings before a training run begins."""
+        if self.settings.epochs <= 0:
+            raise ConfigurationError("epochs must be greater than zero")
+        if self.settings.best_checkpoint_count < 0:
+            raise ConfigurationError("best_checkpoint_count must not be negative")
+        if self.settings.early_stopping_patience < 0:
+            raise ConfigurationError("early_stopping_patience must not be negative")
+        if self.settings.checkpoint_mode not in {"min", "max"}:
+            raise ConfigurationError("checkpoint_mode must be 'min' or 'max'")
+        if self.settings.checkpoint_path is None:
+            self.warn("Checkpoint path not configured; no checkpoints will be saved.")
+            return
+        if not self.settings.checkpoint_path.exists():
+            raise ConfigurationError("Configured checkpoint path does not exist")
+        if not self.settings.checkpoint_path.is_dir():
+            raise ConfigurationError("Configured checkpoint path must be a directory")
+        if (
+            self.settings.best_checkpoint_count > 0
+            and not self.settings.checkpoint_monitor
+        ):
+            raise ConfigurationError(
+                "checkpoint_monitor must be configured for best checkpoint saving"
+            )
+
+    def checkpoint_enabled(self) -> bool:
+        """Return whether checkpoint saving is configured for this Trainer."""
+        return self.settings.checkpoint_path is not None
+
+    def warn(self, message: str) -> None:
+        """Record a non-fatal Trainer warning message."""
+        self.warnings.append(message)
+
+    def build_checkpoint_info(
+        self,
+        *,
+        path: Path,
+        kind: str,
+        monitor_metric: str | None = None,
+        monitor_value: float | None = None,
+        rank: int | None = None,
+    ) -> CheckpointInfo:
+        """Build structured metadata for a saved checkpoint."""
+        return CheckpointInfo(
+            path=path,
+            kind=kind,
+            epoch=self.current_epoch,
+            global_step=self.global_step,
+            monitor_metric=monitor_metric,
+            monitor_value=monitor_value,
+            rank=rank,
+        )
+
+    def checkpoint_path_for(self, filename: str) -> Path:
+        """Resolve a checkpoint filename under the configured checkpoint path."""
+        if self.settings.checkpoint_path is None:
+            raise CheckpointError("Checkpoint path is not configured")
+        return self.settings.checkpoint_path / filename
+
     def load_checkpoint(
         self,
         path: str | Path,
         model,
     ) -> dict[str, Any]:
+        """Load checkpoint state into the model and optimizer."""
         checkpoint = torch.load(str(path), map_location=self.device)
         model.load_state_dict(checkpoint["model_state_dict"])
         self.optimizer.load_state_dict(checkpoint["optimizer_state_dict"])

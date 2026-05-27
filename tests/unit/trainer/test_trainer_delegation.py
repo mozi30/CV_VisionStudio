@@ -1,0 +1,95 @@
+"""Unit tests for trainer delegation and configuration behavior."""
+
+from pathlib import Path
+
+import pytest
+import torch
+from torch.optim import SGD
+
+from vision_studio.trainer.base import Trainer
+from vision_studio.types import ConfigurationError, TrainerSettings
+
+
+class _StubTrainer(Trainer):
+    def fit(self, model, train_loader, val_loader=None):  # type: ignore[override]
+        return {}
+
+    def train_epoch(self, model, train_loader):  # type: ignore[override]
+        return {"loss": 0.0}
+
+
+def test_trainer_settings_reject_zero_epochs() -> None:
+    """Trainer settings should preserve explicitly configured epochs."""
+    settings = TrainerSettings(epochs=0)
+    assert settings.epochs == 0
+
+
+def test_configuration_error_is_exception() -> None:
+    """ConfigurationError should remain an exception subtype."""
+    assert issubclass(ConfigurationError, Exception)
+
+
+def test_trainer_settings_warn_when_checkpoint_path_missing(tmp_path: Path) -> None:
+    """Trainer should warn when checkpoint saving is not configured."""
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = SGD([parameter], lr=0.1)
+    trainer = _StubTrainer(
+        optimizer=optimizer,
+        settings=TrainerSettings(checkpoint_path=None),
+    )
+    trainer.validate_settings()
+    assert trainer.warnings
+
+
+def test_trainer_settings_raise_for_missing_checkpoint_path(tmp_path: Path) -> None:
+    """Trainer should fail when a configured checkpoint path does not exist."""
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = SGD([parameter], lr=0.1)
+    missing = tmp_path / "missing"
+    trainer = _StubTrainer(
+        optimizer=optimizer,
+        settings=TrainerSettings(checkpoint_path=missing),
+    )
+    with pytest.raises(ConfigurationError):
+        trainer.validate_settings()
+
+
+def test_trainer_settings_require_checkpoint_monitor_for_best_checkpoints(
+    tmp_path: Path,
+) -> None:
+    """Best checkpoint saving should require an explicit monitor metric."""
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = SGD([parameter], lr=0.1)
+    trainer = _StubTrainer(
+        optimizer=optimizer,
+        settings=TrainerSettings(
+            checkpoint_path=tmp_path,
+            best_checkpoint_count=3,
+            checkpoint_monitor=None,
+        ),
+    )
+    with pytest.raises(ConfigurationError):
+        trainer.validate_settings()
+
+
+def test_trainer_checkpoint_enabled_matches_checkpoint_path_configuration(
+    tmp_path: Path,
+) -> None:
+    """Checkpoint enablement should track checkpoint path configuration."""
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = SGD([parameter], lr=0.1)
+
+    disabled_trainer = _StubTrainer(
+        optimizer=optimizer,
+        settings=TrainerSettings(checkpoint_path=None),
+    )
+    assert disabled_trainer.checkpoint_enabled() is False
+
+    enabled_trainer = _StubTrainer(
+        optimizer=optimizer,
+        settings=TrainerSettings(
+            checkpoint_path=tmp_path,
+            checkpoint_monitor="loss",
+        ),
+    )
+    assert enabled_trainer.checkpoint_enabled() is True
