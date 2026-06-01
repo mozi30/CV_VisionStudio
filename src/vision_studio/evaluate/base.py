@@ -41,6 +41,7 @@ class BaseEvaluator(ABC):
     def compute(self) -> EvaluatorOutput:
         pass
 
+
 class LossEvaluator(BaseEvaluator):
     def __init__(self) -> None:
         super().__init__()

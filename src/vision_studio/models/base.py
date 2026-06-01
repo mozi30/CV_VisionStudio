@@ -8,7 +8,7 @@ import torch
 import torch.nn as nn
 from torch import Tensor
 
-from ..types import InputSpec, OutputSpec, LossOutput, PostprocessOutput
+from ..types import InputSpec, LossOutput, OutputSpec, PostprocessOutput
 
 
 class BaseModel(nn.Module, ABC):
@@ -41,21 +41,20 @@ class BaseModel(nn.Module, ABC):
     # -------------------------
     @abstractmethod
     def forward(self, inputs: Tensor) -> Tensor:
-        """
-        Main model computation - returns ONLY raw logits/outputs.
+        """Main model computation - returns ONLY raw logits/outputs.
 
         Args:
             inputs: Input tensor matching input_spec
 
         Returns:
             Raw model outputs (logits) as a single Tensor
+
         """
         raise NotImplementedError
 
     @abstractmethod
     def postprocess(self, logits: Tensor) -> PostprocessOutput:
-        """
-        Task-specific postprocessing of raw outputs.
+        """Task-specific postprocessing of raw outputs.
 
         Converts raw logits to task-specific outputs (probs, labels, etc.)
         This is called during inference and evaluation.
@@ -65,6 +64,7 @@ class BaseModel(nn.Module, ABC):
 
         Returns:
             Dictionary with task-specific processed outputs
+
         """
         raise NotImplementedError
 

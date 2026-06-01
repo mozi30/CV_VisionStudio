@@ -17,127 +17,124 @@ from .base import DataLoader
 
 
 class BalancedDataLoader(DataLoader[tuple[Tensor, dict[str, Any]]]):
-	"""Data loader that ensures balanced sampling across all classes.
+    """Data loader that ensures balanced sampling across all classes.
 
-	Each class has equal probability of being sampled regardless of
-	the class distribution in the dataset. Useful for imbalanced datasets.
-	"""
+    Each class has equal probability of being sampled regardless of
+    the class distribution in the dataset. Useful for imbalanced datasets.
+    """
 
-	def __init__(
-		self,
-		dataset: Dataset,
-		batch_size: int = 1,
-		shuffle: bool = True,
-	):
-		"""Initialize balanced data loader.
+    def __init__(
+        self,
+        dataset: Dataset,
+        batch_size: int = 1,
+        shuffle: bool = True,
+    ):
+        """Initialize balanced data loader.
 
-		Args:
-			dataset: Dataset with get_class_sample_counts() method.
-			batch_size: Number of samples per batch.
-			shuffle: Whether to shuffle samples within each epoch.
-		"""
-		self.dataset = dataset
-		self.batch_size = batch_size
-		self.shuffle = shuffle
+        Args:
+                dataset: Dataset with get_class_sample_counts() method.
+                batch_size: Number of samples per batch.
+                shuffle: Whether to shuffle samples within each epoch.
 
-		# Get class sample counts from dataset
-		if not hasattr(dataset, "get_class_sample_counts"):
-			raise AttributeError(
-				f"Dataset must have get_class_sample_counts() method"
-			)
+        """
+        self.dataset = dataset
+        self.batch_size = batch_size
+        self.shuffle = shuffle
 
-		class_counts = dataset.get_class_sample_counts()
-		if class_counts is None:
-			raise ValueError(
-				"Dataset.get_class_sample_counts() returned None"
-			)
+        # Get class sample counts from dataset
+        if not hasattr(dataset, "get_class_sample_counts"):
+            raise AttributeError("Dataset must have get_class_sample_counts() method")
 
-		self.class_counts = class_counts
-		self._compute_sample_weights()
+        class_counts = dataset.get_class_sample_counts()
+        if class_counts is None:
+            raise ValueError("Dataset.get_class_sample_counts() returned None")
 
-	def _compute_sample_weights(self) -> None:
-		"""Compute weights for each sample to balance classes.
+        self.class_counts = class_counts
+        self._compute_sample_weights()
 
-		Weight is inversely proportional to class frequency:
-		weight[i] = 1 / (class_count[label[i]] * num_classes)
-		"""
-		num_classes = len(self.class_counts)
-		self.sample_weights: list[float] = []
+    def _compute_sample_weights(self) -> None:
+        """Compute weights for each sample to balance classes.
 
-		for idx in range(len(self.dataset)):
-			print(f"Computing weight for sample {idx+1}/{len(self.dataset)}", end="\r")
-			_, target = self.dataset[idx]
-			label = int(target["label"])
-			class_count = self.class_counts.get(label, 1)
-			# Weight is inversely proportional to class frequency
-			weight = 1.0 / (class_count * num_classes)
-			self.sample_weights.append(weight)
+        Weight is inversely proportional to class frequency:
+        weight[i] = 1 / (class_count[label[i]] * num_classes)
+        """
+        num_classes = len(self.class_counts)
+        self.sample_weights: list[float] = []
 
-	def __iter__(self) -> Iterator[tuple[Tensor, dict[str, Any]]]:
-		"""Yield batches with balanced class representation."""
-		# Sample indices with replacement using computed weights
-		# This ensures each class has equal expected representation
-		num_samples = len(self.dataset)
-		sampled_indices = random.choices(
-			range(num_samples),
-			weights=self.sample_weights,
-			k=num_samples,
-		)
+        for idx in range(len(self.dataset)):
+            print(f"Computing weight for sample {idx+1}/{len(self.dataset)}", end="\r")
+            _, target = self.dataset[idx]
+            label = int(target["label"])
+            class_count = self.class_counts.get(label, 1)
+            # Weight is inversely proportional to class frequency
+            weight = 1.0 / (class_count * num_classes)
+            self.sample_weights.append(weight)
 
-		if self.shuffle:
-			random.shuffle(sampled_indices)
+    def __iter__(self) -> Iterator[tuple[Tensor, dict[str, Any]]]:
+        """Yield batches with balanced class representation."""
+        # Sample indices with replacement using computed weights
+        # This ensures each class has equal expected representation
+        num_samples = len(self.dataset)
+        sampled_indices = random.choices(
+            range(num_samples),
+            weights=self.sample_weights,
+            k=num_samples,
+        )
 
-		# Yield batches
-		for start in range(0, len(sampled_indices), self.batch_size):
-			batch_indices = sampled_indices[start : start + self.batch_size]
-			samples = [self.dataset[i] for i in batch_indices]
-			yield self._collate_batch(samples)
+        if self.shuffle:
+            random.shuffle(sampled_indices)
 
-	def __len__(self) -> int:
-		"""Return the number of batches."""
-		return (len(self.dataset) + self.batch_size - 1) // self.batch_size
+        # Yield batches
+        for start in range(0, len(sampled_indices), self.batch_size):
+            batch_indices = sampled_indices[start : start + self.batch_size]
+            samples = [self.dataset[i] for i in batch_indices]
+            yield self._collate_batch(samples)
 
-	def _collate_batch(
-		self,
-		samples: list[tuple[Any, dict[str, Any]]],
-	) -> tuple[Tensor, dict[str, Any]]:
-		"""Collate samples into a batch."""
-		inputs = [sample[0] for sample in samples]
-		targets = [sample[1] for sample in samples]
+    def __len__(self) -> int:
+        """Return the number of batches."""
+        return (len(self.dataset) + self.batch_size - 1) // self.batch_size
 
-		return self._collate_inputs(inputs), self._collate_targets(targets)
+    def _collate_batch(
+        self,
+        samples: list[tuple[Any, dict[str, Any]]],
+    ) -> tuple[Tensor, dict[str, Any]]:
+        """Collate samples into a batch."""
+        inputs = [sample[0] for sample in samples]
+        targets = [sample[1] for sample in samples]
 
-	def _collate_inputs(self, inputs: list[Any]) -> Tensor:
-		"""Stack input tensors."""
-		tensors: list[Tensor] = []
+        return self._collate_inputs(inputs), self._collate_targets(targets)
 
-		for input_item in inputs:
-			if isinstance(input_item, Tensor):
-				tensors.append(input_item)
-			elif isinstance(input_item, Image.Image):
-				tensors.append(F.to_tensor(input_item))
-			else:
-				tensors.append(torch.as_tensor(input_item))
+    def _collate_inputs(self, inputs: list[Any]) -> Tensor:
+        """Stack input tensors."""
+        tensors: list[Tensor] = []
 
-		return torch.stack(tensors, dim=0)
+        for input_item in inputs:
+            if isinstance(input_item, Tensor):
+                tensors.append(input_item)
+            elif isinstance(input_item, Image.Image):
+                tensors.append(F.to_tensor(input_item))
+            else:
+                tensors.append(torch.as_tensor(input_item))
 
-	def _collate_targets(self, targets: list[dict[str, Any]]) -> dict[str, Any]:
-		"""Stack target tensors."""
-		if not targets:
-			return {}
+        return torch.stack(tensors, dim=0)
 
-		batched_targets: dict[str, Any] = {}
+    def _collate_targets(self, targets: list[dict[str, Any]]) -> dict[str, Any]:
+        """Stack target tensors."""
+        if not targets:
+            return {}
 
-		for key in targets[0].keys():
-			values = [target[key] for target in targets]
+        batched_targets: dict[str, Any] = {}
 
-			if all(isinstance(value, Tensor) for value in values):
-				batched_targets[key] = torch.stack(values, dim=0)
-			elif all(isinstance(value, (int, float, bool)) for value in values):
-				batched_targets[key] = torch.as_tensor(values)
-			elif all(isinstance(value, str) for value in values):
-				batched_targets[key] = values
-			else:
-				batched_targets[key] = values
+        for key in targets[0].keys():
+            values = [target[key] for target in targets]
 
-		return batched_targets
+            if all(isinstance(value, Tensor) for value in values):
+                batched_targets[key] = torch.stack(values, dim=0)
+            elif all(isinstance(value, (int, float, bool)) for value in values):
+                batched_targets[key] = torch.as_tensor(values)
+            elif all(isinstance(value, str) for value in values):
+                batched_targets[key] = values
+            else:
+                batched_targets[key] = values
+
+        return batched_targets

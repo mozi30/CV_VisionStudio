@@ -23,9 +23,11 @@ class ImageNetClassificationDataset(Dataset):
         split (str): One of 'train', 'val', or 'test'.
         transform (callable, optional): A function/transform to apply to each image.
         """
-        assert split in ["train", "val", "test"], (
-            "Split must be one of 'train', 'val', 'test'"
-        )
+        assert split in [
+            "train",
+            "val",
+            "test",
+        ], "Split must be one of 'train', 'val', 'test'"
 
         self.root_dir = root_dir
         self.split = split
@@ -95,7 +97,7 @@ class ImageNetClassificationDataset(Dataset):
                 image = image / 255.0
 
         return image, target
-    
+
     def get_class_sample_counts(self) -> dict[int, int] | None:
         """Return a mapping from class id to sample count, or None if not available."""
         counts: dict[int, int] = {idx: 0 for idx in range(len(self.class_names))}
