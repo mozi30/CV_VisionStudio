@@ -1,12 +1,21 @@
 """Unit tests for evaluator exceptions and contracts."""
 
 from collections.abc import Iterable
+from typing import Any
 
 import torch
 
 from vision_studio.evaluate.evaluator import LoopEvaluator
 from vision_studio.models.base import BaseModel
-from vision_studio.types import EvaluationError
+from vision_studio.types import (
+    EvaluationError,
+    InputSpec,
+    LossOutput,
+    OutputSpec,
+    PostprocessOutput,
+)
+
+# ruff: noqa: D103
 
 
 class _StubMetrics:
@@ -26,20 +35,20 @@ class _StubMetrics:
 
 class _StubModel(BaseModel):
     @property
-    def input_spec(self):
+    def input_spec(self) -> InputSpec:
         return {}
 
     @property
-    def output_spec(self):
+    def output_spec(self) -> OutputSpec:
         return {}
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return inputs
 
-    def postprocess(self, logits: torch.Tensor):
+    def postprocess(self, logits: torch.Tensor) -> PostprocessOutput:
         return {"logits": logits}
 
-    def compute_loss(self, logits: torch.Tensor, targets):
+    def compute_loss(self, logits: torch.Tensor, targets: dict[str, Any]) -> LossOutput:
         return {"loss": logits.mean()}
 
 
@@ -62,3 +71,24 @@ def test_loop_evaluator_resets_updates_and_computes_metrics() -> None:
     assert metrics.reset_called is True
     assert metrics.updates == 1
     assert result == {"loss": 0.5}
+
+
+def test_prepare_ensemble_handoff_normalizes_output() -> None:
+    metrics = _StubMetrics()
+    evaluator = LoopEvaluator(metrics=metrics)
+
+    payload = {
+        "preds": torch.tensor([1, 0]),
+        "metrics": {"loss": 0.1},
+        "status": "completed",
+        "aggregation_metadata": {"mode": "soft"},
+        "failed_models": [2],
+    }
+
+    handoff = evaluator.prepare_ensemble_handoff(payload)
+
+    assert torch.equal(handoff["preds"], torch.tensor([1, 0]))
+    assert handoff["metrics"] == {"loss": 0.1}
+    assert handoff["status"] == "completed"
+    assert handoff["aggregation_metadata"] == {"mode": "soft"}
+    assert handoff["failed_models"] == [2]
