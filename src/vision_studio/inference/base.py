@@ -1,3 +1,7 @@
+"""Base abstractions and utilities for inference workflows."""
+
+# ruff: noqa: D101,D102,D107,N812
+
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
@@ -10,6 +14,8 @@ from PIL import Image
 from torch import Tensor
 from torch.nn import Module
 from torchvision.transforms import functional as F
+
+from vision_studio.types import ConfigurationError
 
 Batch = tuple[Tensor, dict[str, Any]]
 
@@ -65,7 +71,7 @@ class Inference(ABC):
     def _collate_raw_batch(self, batch: Any) -> Batch:
         samples = list(batch)
         if not samples:
-            raise ValueError("Batch must not be empty.")
+            raise ConfigurationError("Inference batch must not be empty.")
 
         inputs = [sample[0] for sample in samples]
         targets = [sample[1] for sample in samples]
@@ -92,6 +98,23 @@ class Inference(ABC):
                 batched_targets[key] = values
 
         return batched_inputs, batched_targets
+
+    @staticmethod
+    def validate_non_empty_models(models: list[Module]) -> None:
+        if not models:
+            raise ConfigurationError("Model list must not be empty.")
+
+    @staticmethod
+    def validate_frame_skip(frame_skip: int) -> None:
+        if frame_skip < 0:
+            raise ConfigurationError("frame_skip must be >= 0.")
+
+    @staticmethod
+    def validate_webcam_source(source: int | str) -> None:
+        if isinstance(source, int) and source < 0:
+            raise ConfigurationError("webcam source index must be >= 0.")
+        if isinstance(source, str) and not source.strip():
+            raise ConfigurationError("webcam source path must not be empty.")
 
     def save_predictions(
         self,

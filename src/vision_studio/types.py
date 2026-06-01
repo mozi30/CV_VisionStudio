@@ -227,3 +227,22 @@ class EvaluationError(VisionStudioError):
 
 class CheckpointError(VisionStudioError):
     """Raised when checkpoint configuration or saving fails."""
+
+
+# ============================================================================
+# INFERENCE SETTINGS TYPES
+# ============================================================================
+
+AggregationMode = str
+TiePolicy = str
+FailurePolicy = str
+
+
+@dataclass(slots=True)
+class RealtimeInferenceConfig:
+    """Configuration for realtime webcam inference runs."""
+
+    source: int | str = 0
+    frame_skip: int = 0
+    record_output: bool = False
+    output_path: Path | None = None

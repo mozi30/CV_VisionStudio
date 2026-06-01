@@ -75,3 +75,21 @@ class LoopEvaluator(Evaluator):
         self.reporter.log({"evaluation/loss": result["loss"]})
         self.reporter.finish()
         return result
+
+    def prepare_ensemble_handoff(
+        self, ensemble_output: dict[str, Any]
+    ) -> dict[str, Any]:
+        """Normalize unified inference ensemble output for evaluator consumers."""
+        preds = ensemble_output.get("preds")
+        if preds is None:
+            raise ValueError(
+                "Ensemble output must include 'preds' for evaluator handoff."
+            )
+
+        return {
+            "preds": preds,
+            "metrics": ensemble_output.get("metrics", {}),
+            "status": ensemble_output.get("status", "completed"),
+            "aggregation_metadata": ensemble_output.get("aggregation_metadata", {}),
+            "failed_models": ensemble_output.get("failed_models", []),
+        }
