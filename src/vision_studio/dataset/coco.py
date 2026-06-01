@@ -10,12 +10,6 @@ from .base import Dataset
 
 
 class CocoDataset(Dataset):
-    def __init__(self, base_path: str | Path) -> None:
-        base_path = Path(base_path)
-        images_dir = base_path / "images"
-        annotation_file = base_path / "annotations.json"
-        self._init_from_files(images_dir, annotation_file)
-
     def __init__(self, images_dir: str | Path, annotation_file: str | Path) -> None:
         self.images_dir = Path(images_dir)
         self.annotation_file = Path(annotation_file)

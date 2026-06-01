@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from typing import Any
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch import Tensor
 
+from ..types import ClassificationPostprocessOutput, LossOutput
 from .base import BaseModel, InputSpec, OutputSpec
-from ..types import LossOutput, ClassificationPostprocessOutput
 
 
 class ImageClassifier(BaseModel):
@@ -46,14 +48,14 @@ class ImageClassifier(BaseModel):
         )
 
     def forward(self, inputs: Tensor) -> Tensor:
-        """
-        Forward pass - returns ONLY logits for speed.
+        """Forward pass - returns ONLY logits for speed.
 
         Args:
             inputs: [batch_size, in_channels, height, width]
 
         Returns:
             logits: [batch_size, num_classes]
+
         """
         x = self.features(inputs)
         x = x.flatten(1)
@@ -61,8 +63,7 @@ class ImageClassifier(BaseModel):
         return logits
 
     def postprocess(self, logits: Tensor) -> ClassificationPostprocessOutput:
-        """
-        Task-specific postprocessing of raw logits.
+        """Task-specific postprocessing of raw logits.
 
         Args:
             logits: [batch_size, num_classes]
@@ -72,6 +73,7 @@ class ImageClassifier(BaseModel):
                 - logits: [batch_size, num_classes]
                 - probs: [batch_size, num_classes] softmax probabilities
                 - labels: [batch_size] predicted class indices
+
         """
         probs = torch.softmax(logits, dim=1)
         labels = torch.argmax(logits, dim=1)
@@ -87,8 +89,7 @@ class ImageClassifier(BaseModel):
         logits: Tensor,
         targets: dict,
     ) -> LossOutput:
-        """
-        Compute classification loss from logits.
+        """Compute classification loss from logits.
 
         Args:
             logits: [batch_size, num_classes] raw model output
@@ -96,6 +97,7 @@ class ImageClassifier(BaseModel):
 
         Returns:
             LossOutput with 'loss' key
+
         """
         labels = targets["label"]
         loss = F.cross_entropy(logits, labels)

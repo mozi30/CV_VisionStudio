@@ -1,6 +1,6 @@
-from .base import Inference
-from .classification import ClassificationInference
-from .simple import SimpleInference
-from .wandb import WandbInference
+"""Unified inference public exports."""
 
-__all__ = ["ClassificationInference", "Inference", "SimpleInference", "WandbInference"]
+from .base import Inference
+from .simple import SimpleInference
+
+__all__ = ["Inference", "SimpleInference"]

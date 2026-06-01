@@ -33,6 +33,7 @@ line-length = 88
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "N", "D"]
+ignore = ["D", "N812", "B905", "E501"]
 
 [tool.black]
 line-length = 88

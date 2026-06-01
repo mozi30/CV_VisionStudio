@@ -18,8 +18,6 @@ def main() -> None:
     # Configuration
     num_classes = 10  # CIFAR-10 style
     image_size = 32
-    batch_size = 32
-    num_epochs = 5
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     print(f"Using device: {device}")
@@ -34,7 +32,7 @@ def main() -> None:
     # }
 
     # Create augmentation pipeline for classification
-    train_transforms = Compose(
+    _train_transforms = Compose(
         [
             ImageToArray(),  # Convert PIL to numpy if needed
             HorizontalFlip(),  # Random horizontal flip
@@ -44,7 +42,7 @@ def main() -> None:
         ]
     )
 
-    val_transforms = Compose(
+    _val_transforms = Compose(
         [
             ImageToArray(),
             Resize(image_size, image_size),
@@ -77,8 +75,7 @@ def main() -> None:
 
     # Print usage instructions
     print("\n=== Usage Instructions ===")
-    print(
-        """
+    print("""
 To use VisionStudio for your classification task:
 
 1. Prepare your dataset with the following structure:
@@ -125,8 +122,7 @@ To use VisionStudio for your classification task:
    model.save_weights('path/to/model.pt')
    model.load_weights('path/to/model.pt')
    ```
-    """
-    )
+    """)
 
 
 if __name__ == "__main__":

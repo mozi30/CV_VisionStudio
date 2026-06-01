@@ -29,11 +29,11 @@ from .preprocessing import (
     CannyEdge,
     ContrastNormalization,
     CustomFilter,
+    EdgeSharpen,
     GaussianBlurFilter,
     Grayscale,
     HistogramEqualization,
     SobelFilter,
-    EdgeSharpen,
 )
 
 __all__ = [

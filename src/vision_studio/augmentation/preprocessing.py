@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+
 import cv2
 import numpy as np
 from PIL import ImageFilter
@@ -12,121 +13,137 @@ from .utils import clamp_uint8, copy_target, is_grayscale, to_numpy, to_pil
 
 
 def _to_grayscale_float(image: np.ndarray) -> np.ndarray:
-	if image.ndim == 2:
-		return image.astype(np.float32)
-	if image.ndim == 3 and image.shape[2] == 1:
-		return image[..., 0].astype(np.float32)
-	if image.ndim == 3 and image.shape[2] >= 3:
-		arr = image[..., :3].astype(np.float32)
-		return 0.2989 * arr[..., 0] + 0.5870 * arr[..., 1] + 0.1140 * arr[..., 2]
-	raise ValueError("image must be 2D or 3D with channels")
+    if image.ndim == 2:
+        return image.astype(np.float32)
+    if image.ndim == 3 and image.shape[2] == 1:
+        return image[..., 0].astype(np.float32)
+    if image.ndim == 3 and image.shape[2] >= 3:
+        arr = image[..., :3].astype(np.float32)
+        return 0.2989 * arr[..., 0] + 0.5870 * arr[..., 1] + 0.1140 * arr[..., 2]
+    raise ValueError("image must be 2D or 3D with channels")
 
 
 def _equalize_channel(channel: np.ndarray) -> np.ndarray:
-	"""Fast histogram equalization using OpenCV."""
-	return cv2.equalizeHist(channel.astype(np.uint8))
+    """Fast histogram equalization using OpenCV."""
+    return cv2.equalizeHist(channel.astype(np.uint8))
 
 
 def _non_max_suppression(magnitude: np.ndarray, angle: np.ndarray) -> np.ndarray:
-	"""Fast non-maximum suppression using vectorized operations."""
-	out = np.zeros_like(magnitude, dtype=np.float32)
-	angle = angle % 180.0
-	h, w = magnitude.shape
-	
-	# Vectorized approach for direction indices
-	i = np.arange(1, h - 1)
-	j = np.arange(1, w - 1)
-	ii, jj = np.meshgrid(i, j, indexing='ij')
-	
-	angle_slice = angle[1:-1, 1:-1]
-	mag_slice = magnitude[1:-1, 1:-1]
-	
-	# Define direction masks
-	mask_h = ((angle_slice >= 0) & (angle_slice < 22.5)) | ((angle_slice >= 157.5) & (angle_slice <= 180))
-	mask_diag1 = (angle_slice >= 22.5) & (angle_slice < 67.5)
-	mask_diag2 = (angle_slice >= 67.5) & (angle_slice < 112.5)
-	mask_v = (angle_slice >= 112.5) & (angle_slice < 157.5)
-	
-	# Horizontal
-	q_h = magnitude[1:-1, 2:]
-	r_h = magnitude[1:-1, :-2]
-	cond_h = (mag_slice >= q_h) & (mag_slice >= r_h)
-	out[1:-1, 1:-1][mask_h & cond_h] = mag_slice[mask_h & cond_h]
-	
-	# Diagonal 1 (top-left to bottom-right)
-	q_d1 = magnitude[2:, :-2]
-	r_d1 = magnitude[:-2, 2:]
-	cond_d1 = (mag_slice >= q_d1) & (mag_slice >= r_d1)
-	out[1:-1, 1:-1][mask_diag1 & cond_d1] = mag_slice[mask_diag1 & cond_d1]
-	
-	# Vertical
-	q_v = magnitude[2:, 1:-1]
-	r_v = magnitude[:-2, 1:-1]
-	cond_v = (mag_slice >= q_v) & (mag_slice >= r_v)
-	out[1:-1, 1:-1][mask_diag2 & cond_v] = mag_slice[mask_diag2 & cond_v]
-	
-	# Diagonal 2 (bottom-left to top-right)
-	q_d2 = magnitude[:-2, :-2]
-	r_d2 = magnitude[2:, 2:]
-	cond_d2 = (mag_slice >= q_d2) & (mag_slice >= r_d2)
-	out[1:-1, 1:-1][mask_v & cond_d2] = mag_slice[mask_v & cond_d2]
-	
-	return out
+    """Fast non-maximum suppression using vectorized operations."""
+    out = np.zeros_like(magnitude, dtype=np.float32)
+    angle = angle % 180.0
+    h, w = magnitude.shape
+
+    # Vectorized approach for direction indices
+    i = np.arange(1, h - 1)
+    j = np.arange(1, w - 1)
+    ii, jj = np.meshgrid(i, j, indexing="ij")
+
+    angle_slice = angle[1:-1, 1:-1]
+    mag_slice = magnitude[1:-1, 1:-1]
+
+    # Define direction masks
+    mask_h = ((angle_slice >= 0) & (angle_slice < 22.5)) | (
+        (angle_slice >= 157.5) & (angle_slice <= 180)
+    )
+    mask_diag1 = (angle_slice >= 22.5) & (angle_slice < 67.5)
+    mask_diag2 = (angle_slice >= 67.5) & (angle_slice < 112.5)
+    mask_v = (angle_slice >= 112.5) & (angle_slice < 157.5)
+
+    # Horizontal
+    q_h = magnitude[1:-1, 2:]
+    r_h = magnitude[1:-1, :-2]
+    cond_h = (mag_slice >= q_h) & (mag_slice >= r_h)
+    out[1:-1, 1:-1][mask_h & cond_h] = mag_slice[mask_h & cond_h]
+
+    # Diagonal 1 (top-left to bottom-right)
+    q_d1 = magnitude[2:, :-2]
+    r_d1 = magnitude[:-2, 2:]
+    cond_d1 = (mag_slice >= q_d1) & (mag_slice >= r_d1)
+    out[1:-1, 1:-1][mask_diag1 & cond_d1] = mag_slice[mask_diag1 & cond_d1]
+
+    # Vertical
+    q_v = magnitude[2:, 1:-1]
+    r_v = magnitude[:-2, 1:-1]
+    cond_v = (mag_slice >= q_v) & (mag_slice >= r_v)
+    out[1:-1, 1:-1][mask_diag2 & cond_v] = mag_slice[mask_diag2 & cond_v]
+
+    # Diagonal 2 (bottom-left to top-right)
+    q_d2 = magnitude[:-2, :-2]
+    r_d2 = magnitude[2:, 2:]
+    cond_d2 = (mag_slice >= q_d2) & (mag_slice >= r_d2)
+    out[1:-1, 1:-1][mask_v & cond_d2] = mag_slice[mask_v & cond_d2]
+
+    return out
 
 
 class HistogramEqualization(Augmentation):
-	def __init__(self, per_channel: bool = True, keep_channels: bool = True, use_clahe: bool = False, p: float = 1.0):
-		super().__init__(p=p)
-		self.per_channel = per_channel
-		self.keep_channels = keep_channels
-		self.use_clahe = use_clahe
-		if use_clahe:
-			self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    def __init__(
+        self,
+        per_channel: bool = True,
+        keep_channels: bool = True,
+        use_clahe: bool = False,
+        p: float = 1.0,
+    ):
+        super().__init__(p=p)
+        self.per_channel = per_channel
+        self.keep_channels = keep_channels
+        self.use_clahe = use_clahe
+        if use_clahe:
+            self.clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
 
-	def __call__(self, image: np.ndarray, target: dict[str, Any]):
-		arr = clamp_uint8(image)
+    def __call__(self, image: np.ndarray, target: dict[str, Any]):
+        arr = clamp_uint8(image)
 
-		if is_grayscale(arr):
-			gray = arr if arr.ndim == 2 else arr[..., 0]
-			eq = self.clahe.apply(gray) if self.use_clahe else cv2.equalizeHist(gray)
-			if arr.ndim == 3:
-				eq = eq[..., None]
-			return eq, copy_target(target)
+        if is_grayscale(arr):
+            gray = arr if arr.ndim == 2 else arr[..., 0]
+            eq = self.clahe.apply(gray) if self.use_clahe else cv2.equalizeHist(gray)
+            if arr.ndim == 3:
+                eq = eq[..., None]
+            return eq, copy_target(target)
 
-		if self.per_channel:
-			if self.use_clahe:
-				out = np.stack([self.clahe.apply(arr[..., c]) for c in range(arr.shape[2])], axis=-1)
-			else:
-				out = np.stack([cv2.equalizeHist(arr[..., c]) for c in range(arr.shape[2])], axis=-1)
-			return out, copy_target(target)
+        if self.per_channel:
+            if self.use_clahe:
+                out = np.stack(
+                    [self.clahe.apply(arr[..., c]) for c in range(arr.shape[2])],
+                    axis=-1,
+                )
+            else:
+                out = np.stack(
+                    [cv2.equalizeHist(arr[..., c]) for c in range(arr.shape[2])],
+                    axis=-1,
+                )
+            return out, copy_target(target)
 
-		gray = _to_grayscale_float(arr).astype(np.uint8)
-		eq = self.clahe.apply(gray) if self.use_clahe else cv2.equalizeHist(gray)
-		if self.keep_channels:
-			out = np.stack([eq, eq, eq], axis=-1)
-			return out, copy_target(target)
+        gray = _to_grayscale_float(arr).astype(np.uint8)
+        eq = self.clahe.apply(gray) if self.use_clahe else cv2.equalizeHist(gray)
+        if self.keep_channels:
+            out = np.stack([eq, eq, eq], axis=-1)
+            return out, copy_target(target)
 
-		return eq, copy_target(target)
+        return eq, copy_target(target)
 
 
 class BrightnessNormalization(Augmentation):
-	def __init__(self, target_mean: float = 128.0, per_channel: bool = False, p: float = 1.0):
-		super().__init__(p=p)
-		self.target_mean = target_mean
-		self.per_channel = per_channel
+    def __init__(
+        self, target_mean: float = 128.0, per_channel: bool = False, p: float = 1.0
+    ):
+        super().__init__(p=p)
+        self.target_mean = target_mean
+        self.per_channel = per_channel
 
-	def __call__(self, image: np.ndarray, target: dict[str, Any]):
-		arr = image.astype(np.float32)
+    def __call__(self, image: np.ndarray, target: dict[str, Any]):
+        arr = image.astype(np.float32)
 
-		if arr.ndim == 2:
-			mean = arr.mean()
-		elif self.per_channel:
-			mean = arr.mean(axis=(0, 1), keepdims=True)
-		else:
-			mean = arr.mean()
+        if arr.ndim == 2:
+            mean = arr.mean()
+        elif self.per_channel:
+            mean = arr.mean(axis=(0, 1), keepdims=True)
+        else:
+            mean = arr.mean()
 
-		out = arr + (self.target_mean - mean)
-		return clamp_uint8(out), copy_target(target)
+        out = arr + (self.target_mean - mean)
+        return clamp_uint8(out), copy_target(target)
 
 
 class ContrastNormalization(Augmentation):
@@ -174,32 +191,34 @@ class ContrastNormalization(Augmentation):
 
 
 class Grayscale(Augmentation):
-	def __init__(self, keep_channels: bool = True, p: float = 1.0):
-		super().__init__(p=p)
-		self.keep_channels = keep_channels
+    def __init__(self, keep_channels: bool = True, p: float = 1.0):
+        super().__init__(p=p)
+        self.keep_channels = keep_channels
 
-	def __call__(self, image: np.ndarray, target: dict[str, Any]):
-		pil = to_pil(image).convert("L")
-		arr = np.array(pil)
-		if self.keep_channels:
-			arr = np.stack([arr, arr, arr], axis=-1)
-		return arr, copy_target(target)
+    def __call__(self, image: np.ndarray, target: dict[str, Any]):
+        pil = to_pil(image).convert("L")
+        arr = np.array(pil)
+        if self.keep_channels:
+            arr = np.stack([arr, arr, arr], axis=-1)
+        return arr, copy_target(target)
 
 
 class GaussianBlurFilter(Augmentation):
-	def __init__(self, radius: float = 1.0, p: float = 1.0):
-		super().__init__(p=p)
-		if radius < 0:
-			raise ValueError("radius must be >= 0")
-		self.radius = radius
+    def __init__(self, radius: float = 1.0, p: float = 1.0):
+        super().__init__(p=p)
+        if radius < 0:
+            raise ValueError("radius must be >= 0")
+        self.radius = radius
 
-	def __call__(self, image: np.ndarray, target: dict[str, Any]):
-		pil = to_pil(image).filter(ImageFilter.GaussianBlur(radius=self.radius))
-		return to_numpy(pil), copy_target(target)
+    def __call__(self, image: np.ndarray, target: dict[str, Any]):
+        pil = to_pil(image).filter(ImageFilter.GaussianBlur(radius=self.radius))
+        return to_numpy(pil), copy_target(target)
 
 
 class SobelFilter(Augmentation):
-    def __init__(self, keep_channels: bool = True, normalize: bool = True, p: float = 1.0):
+    def __init__(
+        self, keep_channels: bool = True, normalize: bool = True, p: float = 1.0
+    ):
         super().__init__(p=p)
         self.keep_channels = keep_channels
         self.normalize = normalize
@@ -274,7 +293,13 @@ class CannyEdge(Augmentation):
 
 
 class CustomFilter(Augmentation):
-    def __init__(self, kernel: np.ndarray, normalize: bool = False, clip: bool = True, p: float = 1.0):
+    def __init__(
+        self,
+        kernel: np.ndarray,
+        normalize: bool = False,
+        clip: bool = True,
+        p: float = 1.0,
+    ):
         super().__init__(p=p)
         if kernel.ndim != 2:
             raise ValueError("kernel must be 2D")
@@ -303,7 +328,8 @@ class CustomFilter(Augmentation):
             out = np.clip(out, 0, 255).astype(np.uint8)
 
         return out, copy_target(target)
-    
+
+
 class EdgeSharpen(Augmentation):
     def __init__(
         self,

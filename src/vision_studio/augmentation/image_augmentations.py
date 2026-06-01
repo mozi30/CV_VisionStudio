@@ -252,7 +252,9 @@ class PerspectiveTransform(Augmentation):
 
 
 class Brightness(Augmentation):
-    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+    def __init__(
+        self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0
+    ):
         super().__init__(p=p)
         self.min_factor = min_factor
         self.max_factor = max_factor
@@ -264,7 +266,9 @@ class Brightness(Augmentation):
 
 
 class Contrast(Augmentation):
-    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+    def __init__(
+        self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0
+    ):
         super().__init__(p=p)
         self.min_factor = min_factor
         self.max_factor = max_factor
@@ -276,7 +280,9 @@ class Contrast(Augmentation):
 
 
 class Saturation(Augmentation):
-    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+    def __init__(
+        self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0
+    ):
         super().__init__(p=p)
         self.min_factor = min_factor
         self.max_factor = max_factor
@@ -288,7 +294,9 @@ class Saturation(Augmentation):
 
 
 class EnhanceColor(Augmentation):
-    def __init__(self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0):
+    def __init__(
+        self, min_factor: float = 0.8, max_factor: float = 1.2, p: float = 1.0
+    ):
         super().__init__(p=p)
         self.min_factor = min_factor
         self.max_factor = max_factor
@@ -369,7 +377,9 @@ class GaussianNoise(Augmentation):
 
 
 class GaussianBlur(Augmentation):
-    def __init__(self, radius_min: float = 0.1, radius_max: float = 2.0, p: float = 1.0):
+    def __init__(
+        self, radius_min: float = 0.1, radius_max: float = 2.0, p: float = 1.0
+    ):
         super().__init__(p=p)
         self.radius_min = radius_min
         self.radius_max = radius_max
@@ -398,7 +408,9 @@ class MotionBlur(Augmentation):
 
 
 class Cutout(Augmentation):
-    def __init__(self, mask_height: int, mask_width: int, fill: int = 0, p: float = 1.0):
+    def __init__(
+        self, mask_height: int, mask_width: int, fill: int = 0, p: float = 1.0
+    ):
         super().__init__(p=p)
         self.mask_height = mask_height
         self.mask_width = mask_width
