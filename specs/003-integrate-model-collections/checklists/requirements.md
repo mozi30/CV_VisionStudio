@@ -32,3 +32,4 @@
 ## Notes
 
 - All checks passed on first review.
+- Revalidated after June 2 refinement for optional-backend wording, runtime weight-retrieval exception behavior, cache-count release validation, and README documentation coverage.

@@ -14,6 +14,14 @@
 
 - Q: How should collection/model/weight identifiers be represented? → A: Support both: strings in config/CLI, enums in SDK.
 
+### Session 2026-06-02
+
+- Q: How should timm, MMPreTrain, and torchvision dependencies be required? → A: Each collection backend is optional and only required when that collection is selected.
+- Q: How should model and weight listings be discovered? → A: Cache discovered model and weight metadata locally, with an explicit refresh operation.
+- Q: How should pretrained weight selection behave during model selection? → A: Users can select explicit weights, use default pretrained weights when available, or choose no pretrained weights.
+- Q: What compatibility validation belongs to model collection selection? → A: Validate only collection/model/weight compatibility; dataset and task compatibility are deferred to training or evaluation workflows.
+- Q: How should unverifiable pretrained weights be handled? → A: Allow unverifiable weights only after warning the user before loading.
+
 ## User Scenarios & Testing *(mandatory)*
 
 ### User Story 1 - Choose baseline model and weights (Priority: P1)
@@ -27,7 +35,8 @@ A practitioner selects a baseline model from a supported collection and chooses 
 **Acceptance Scenarios**:
 
 1. **Given** a supported collection is available, **When** the user selects a model and a weight variant, **Then** the system provides the selected model with the chosen weights applied.
-2. **Given** a model is selected with no pretrained weights, **When** the user confirms the selection, **Then** the system provides the model without weights and without errors.
+2. **Given** a supported collection is available, **When** the user selects only a model and default pretrained weights are available, **Then** the system provides the selected model with the collection's default pretrained weights applied.
+3. **Given** a model is selected with no pretrained weights, **When** the user confirms the selection, **Then** the system provides the model without weights and without errors.
 
 ---
 
@@ -37,11 +46,12 @@ A practitioner needs to browse what models and weight variants are available in 
 
 **Why this priority**: Discoverability prevents trial-and-error and improves adoption of baseline collections.
 
-**Independent Test**: Can be tested by requesting a list of available models and weights from each collection.
+**Independent Test**: Can be tested by requesting a list of available models and weights from cached metadata, refreshing the cache, and confirming updated metadata is used.
 
 **Acceptance Scenarios**:
 
-1. **Given** the user requests available options, **When** the system lists models, **Then** each model includes its available weight variants and collection source.
+1. **Given** cached collection metadata exists, **When** the user requests available options, **Then** each model includes its available weight variants and collection source.
+2. **Given** installed backend catalogs may have changed, **When** the user requests a metadata refresh, **Then** the system updates the local model and weight metadata used for future listings.
 
 ---
 
@@ -64,6 +74,7 @@ A practitioner continues to use a custom model definition while optionally mixin
 - What happens when a model name exists in multiple collections?
 - How does the system handle a request for weights that do not exist for the selected model?
 - What happens if a weight artifact cannot be retrieved at request time?
+- What happens if a weight artifact source cannot be verified or lacks integrity metadata?
 
 ## Requirements *(mandatory)*
 
@@ -72,41 +83,53 @@ A practitioner continues to use a custom model definition while optionally mixin
 - **FR-001**: System MUST support baseline model collections from timm, MMPreTrain, and torchvision as selectable sources.
 - **FR-002**: Users MUST be able to specify collection/model/weight identifiers as strings in config/CLI, while SDK users MAY use enums for collections and weights.
 - **FR-003**: System MUST provide a way to list available models for each supported collection along with their available weight variants.
-- **FR-004**: System MUST allow users to select a specific pretrained weight variant or explicitly choose no pretrained weights.
+- **FR-004**: System MUST allow users to select a specific pretrained weight variant, select only a model and use default pretrained weights when available, or explicitly choose no pretrained weights.
 - **FR-005**: System MUST validate that a chosen weight variant is compatible with the selected model and collection.
 - **FR-006**: System MUST require a collection selection when model names are ambiguous across collections.
 - **FR-007**: System MUST preserve existing custom model definition behavior without breaking changes.
 - **FR-008**: System MUST surface the collection source for a selected model and its weights in the user-facing selection output.
+- **FR-009**: System MUST preserve startup, listing, and custom model behavior when optional collection backends that are not selected are not installed.
+- **FR-010**: System MUST cache discovered model and weight metadata locally for fast listing.
+- **FR-011**: System MUST provide an explicit refresh operation that rebuilds cached model and weight metadata from installed supported backends.
+- **FR-012**: When a user selects only a model and the selected collection exposes default pretrained weights for that model, the system MUST apply those default pretrained weights.
+- **FR-013**: When a user selects only a model and no default pretrained weights are available, the system MUST surface that no default weights exist and require the user to proceed without pretrained weights or select an explicit weight variant.
+- **FR-014**: Model collection selection MUST NOT validate dataset compatibility, task compatibility, or training/evaluation suitability; those checks remain the responsibility of downstream training or evaluation workflows.
 
 ### Security Requirements *(include if feature touches trust boundaries or sensitive data)*
 
 - **SEC-001**: System MUST only load pretrained weights from the approved collections and clearly indicate the source to the user.
-- **SEC-002**: System MUST refuse to load weights if the weight source cannot be verified or fails integrity validation.
+- **SEC-002**: System MUST warn the user before loading approved-collection weights whose source cannot be verified or lacks integrity metadata.
+- **SEC-003**: System MUST refuse to load weights when integrity validation is available and fails.
 
 ### Dependency Requirements *(include if dependencies change)*
 
-- **DEP-001**: Dependencies for timm, MMPreTrain, and torchvision MUST be documented with version ranges, license compatibility, and a removal strategy if a dependency is deprecated.
+- **DEP-001**: timm and MMPreTrain MUST be optional collection backends required only when selected; torchvision MAY remain a required project dependency for existing non-collection functionality, but torchvision baseline-model collection behavior MUST remain isolated behind the collection selection flow.
+- **DEP-002**: Optional collection backend dependencies MUST be documented with version ranges, license compatibility, installation guidance, and a removal strategy if a dependency is deprecated.
 
 ### Error Handling Requirements *(mandatory)*
 
-- **ERR-001**: When a collection, model, or weight is invalid, the system MUST return a clear error message and list valid alternatives.
-- **ERR-002**: When pretrained weights cannot be retrieved, the system MUST surface the failure reason and allow the user to retry or select different weights without crashing.
+- **ERR-001**: When a collection, model, or weight is invalid or incompatible within the selected collection, the system MUST return a clear error message and list valid alternatives.
+- **ERR-002**: When pretrained weights cannot be retrieved at runtime, the system MUST raise a clear weight-retrieval exception, surface the failure reason, and allow the user to retry or select different weights without reporting the model as successfully loaded.
+- **ERR-003**: When a selected optional collection backend is not installed, the system MUST fail with a clear dependency error that identifies the missing backend and how to install or choose another collection.
+- **ERR-004**: When unverifiable approved-collection weights are selected, the system MUST present a warning before loading and continue only if the user confirms.
 
 ### AI and Release Requirements *(mandatory if AI assists or feature is releasable)*
 
-- **AI-001**: If automated recommendations are introduced for model or weight selection, they MUST be clearly labeled and reviewed before release.
-- **REL-001**: Release MUST include tests that cover model selection, weight compatibility checks, and failure modes, plus updated user documentation.
+- **AI-001**: Any AI-assisted specification, planning, task generation, implementation, or review artifacts for this feature MUST be human-reviewed before release; if automated runtime recommendations are introduced for model or weight selection, they MUST be clearly labeled and reviewed before release.
+- **REL-001**: Release MUST include tests that cover model selection, weight compatibility checks, runtime weight-retrieval exceptions, cache exposure validation against backend model listings, and failure modes, plus updated README/user documentation.
 
 ### Non-Functional Requirements *(mandatory)*
 
 - **NFR-001**: Listing models and weights for a collection MUST complete in under 2 seconds for a typical local environment.
 - **NFR-002**: Adding baseline collections MUST not increase the time to initialize an unchanged custom model by more than 5%.
+- **NFR-003**: Cached model and weight metadata MUST be used for normal listing requests so discovery performance does not depend on live backend catalog inspection.
 
 ### Key Entities *(include if feature involves data)*
 
 - **ModelCollection**: Represents a collection source and its available models.
 - **ModelOption**: Represents a specific model identifier tied to a collection, including available weight variants.
-- **WeightOption**: Represents a pretrained weight variant with compatibility and source metadata.
+- **WeightOption**: Represents a pretrained weight variant with model compatibility and source metadata.
+- **Collection Metadata Cache**: Local metadata store containing discovered model, weight, compatibility, and source information for supported installed collection backends.
 
 ## Success Criteria *(mandatory)*
 
@@ -124,7 +147,7 @@ A practitioner continues to use a custom model definition while optionally mixin
 | Security reviewed | Yes - external artifacts are involved | Threat review and dependency audit notes |
 | Dependencies justified | Yes - adds model collections | Dependency review with version and license notes |
 | Errors specified and tested | Yes - selection and retrieval errors | Test plan covering invalid selections and retrieval failures |
-| AI output reviewed | No - no AI output in scope | N/A |
+| AI output reviewed | Yes - planning or implementation artifacts may be AI-assisted, while runtime AI recommendations are not in scope | Human review of AI-assisted artifacts before implementation or release |
 | Release gates passed | Yes - user-facing change | Release checklist with tests and docs updated |
 
 ## Assumptions
@@ -133,3 +156,4 @@ A practitioner continues to use a custom model definition while optionally mixin
 - Network access is available when pretrained weights need to be retrieved.
 - Training workflows remain out of scope; this feature focuses on model selection and initialization.
 - Licensing and redistribution policies for external weights are handled by existing project governance.
+- Cached collection metadata may become stale until the user runs the explicit refresh operation.
