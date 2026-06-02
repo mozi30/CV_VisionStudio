@@ -206,3 +206,13 @@ __marimo__/
 
 #Wandb
 wandb/
+
+# Spec Kit local/temp files
+.specify/cache/
+.specify/tmp/
+.specify/logs/
+.specify/.cache/
+.specify/.tmp/
+
+# Optional: local-only notes
+.specify/local/
