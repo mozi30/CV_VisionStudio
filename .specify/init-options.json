@@ -1,9 +1,10 @@
 {
-  "ai": "roo",
+  "ai": "codex",
+  "ai_skills": true,
   "branch_numbering": "sequential",
-  "context_file": ".roo/rules/specify-rules.md",
-  "here": false,
-  "integration": "roo",
+  "context_file": "AGENTS.md",
+  "here": true,
+  "integration": "codex",
   "script": "sh",
   "speckit_version": "0.8.13"
 }

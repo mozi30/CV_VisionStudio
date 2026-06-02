@@ -1,18 +1,116 @@
 from __future__ import annotations
 
+import argparse
+import json
+import sys
+
 import torch
 from torch.optim import Adam
 from torchvision.transforms import Compose
 
 from vision_studio.augmentation import HorizontalFlip, Resize
-from vision_studio.inference import ClassificationInference
+from vision_studio.inference import SimpleInference
 from vision_studio.models import ImageClassifier
-from vision_studio.trainer import ClassificationTrainer
+from vision_studio.trainer import VisionTrainer
 from vision_studio.transforms import ImageToArray, Normalize, ToTensor
+
+
+def _model_collections_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="vision-studio")
+    subparsers = parser.add_subparsers(dest="command")
+    collections = subparsers.add_parser("model-collections")
+    collection_commands = collections.add_subparsers(dest="collection_command")
+
+    list_command = collection_commands.add_parser("list")
+    list_command.add_argument("--collection", default=None)
+    list_command.add_argument("--cache-path", default=None)
+
+    refresh_command = collection_commands.add_parser("refresh")
+    refresh_command.add_argument("--collection", action="append", dest="collections")
+    refresh_command.add_argument("--cache-path", default=None)
+
+    validate_command = collection_commands.add_parser("validate-cache")
+    validate_command.add_argument("--cache-path", default=None)
+    validate_command.add_argument("--minimum-ratio", type=float, default=0.9)
+    return parser
+
+
+def _run_model_collections_cli(argv: list[str]) -> bool:
+    if not argv or argv[0] != "model-collections":
+        return False
+
+    from vision_studio.models.collections import (
+        list_available_models,
+        refresh_collection_metadata,
+        validate_cache_exposure,
+    )
+
+    parser = _model_collections_parser()
+    args = parser.parse_args(argv)
+    if args.collection_command == "list":
+        options = {
+            "collection_id": args.collection,
+        }
+        if args.cache_path:
+            options["cache_path"] = args.cache_path
+        models = list_available_models(**options)
+        print(
+            json.dumps(
+                [
+                    {
+                        "collection_id": model.collection_id,
+                        "model_id": model.model_id,
+                        "weights": [
+                            {
+                                "weight_id": weight.weight_id,
+                                "is_default": weight.is_default,
+                            }
+                            for weight in model.available_weights
+                        ],
+                    }
+                    for model in models
+                ],
+                indent=2,
+            )
+        )
+        return True
+    if args.collection_command == "refresh":
+        options = {}
+        if args.cache_path:
+            options["cache_path"] = args.cache_path
+        if args.collections:
+            options["collection_ids"] = args.collections
+        cache = refresh_collection_metadata(**options)
+        print(
+            json.dumps(
+                {
+                    "generated_at": cache.generated_at,
+                    "backend_versions": cache.backend_versions,
+                    "collections": {
+                        collection_id: len(models)
+                        for collection_id, models in cache.collections.items()
+                    },
+                },
+                indent=2,
+            )
+        )
+        return True
+    if args.collection_command == "validate-cache":
+        options = {"minimum_ratio": args.minimum_ratio}
+        if args.cache_path:
+            options["cache_path"] = args.cache_path
+        print(json.dumps(validate_cache_exposure(**options), indent=2))
+        return True
+
+    parser.error("Choose one of: list, refresh, validate-cache.")
+    return True
 
 
 def main() -> None:
     """Example usage of VisionStudio for image classification tasks."""
+    if _run_model_collections_cli(sys.argv[1:]):
+        return
+
     print("Vision Studio - Image Classification Example")
 
     # Configuration
@@ -59,10 +157,10 @@ def main() -> None:
     optimizer = Adam(model.parameters(), lr=0.001)
 
     # Create trainer
-    trainer = ClassificationTrainer(optimizer=optimizer, device=device)
+    trainer = VisionTrainer(optimizer=optimizer, device=device)
 
     # Create inference engine
-    inference = ClassificationInference(device=device)
+    inference = SimpleInference(device=device)
 
     print("\nVisionStudio Classification Pipeline initialized!")
     print(f"Model architecture: {model.__class__.__name__}")
