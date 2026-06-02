@@ -2,14 +2,14 @@
   "version": "0.8.13",
   "integration_state_schema": 1,
   "installed_integrations": [
-    "roo"
+    "codex"
   ],
   "integration_settings": {
-    "roo": {
+    "codex": {
       "script": "sh",
-      "invoke_separator": "."
+      "invoke_separator": "-"
     }
   },
-  "integration": "roo",
-  "default_integration": "roo"
+  "integration": "codex",
+  "default_integration": "codex"
 }

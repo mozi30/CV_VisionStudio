@@ -5,9 +5,9 @@ from torch.optim import Adam
 from torchvision.transforms import Compose
 
 from vision_studio.augmentation import HorizontalFlip, Resize
-from vision_studio.inference import ClassificationInference
+from vision_studio.inference import SimpleInference
 from vision_studio.models import ImageClassifier
-from vision_studio.trainer import ClassificationTrainer
+from vision_studio.trainer import VisionTrainer
 from vision_studio.transforms import ImageToArray, Normalize, ToTensor
 
 
@@ -59,10 +59,10 @@ def main() -> None:
     optimizer = Adam(model.parameters(), lr=0.001)
 
     # Create trainer
-    trainer = ClassificationTrainer(optimizer=optimizer, device=device)
+    trainer = VisionTrainer(optimizer=optimizer, device=device)
 
     # Create inference engine
-    inference = ClassificationInference(device=device)
+    inference = SimpleInference(device=device)
 
     print("\nVisionStudio Classification Pipeline initialized!")
     print(f"Model architecture: {model.__class__.__name__}")
