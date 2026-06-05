@@ -73,6 +73,21 @@ def test_loop_evaluator_resets_updates_and_computes_metrics() -> None:
     assert result == {"loss": 0.5}
 
 
+def test_loop_evaluator_single_model_result_shape_remains_flat() -> None:
+    metrics = _StubMetrics()
+    evaluator = LoopEvaluator(metrics=metrics)
+    model = _StubModel()
+    dataset: Iterable[tuple[torch.Tensor, dict[str, torch.Tensor]]] = [
+        (torch.ones(2, 2), {"label": torch.ones(2, dtype=torch.long)})
+    ]
+
+    result = evaluator.evaluate(model, dataset)
+
+    assert result == {"loss": 0.5}
+    assert "status" not in result
+    assert "aggregation_metadata" not in result
+
+
 def test_prepare_ensemble_handoff_normalizes_output() -> None:
     metrics = _StubMetrics()
     evaluator = LoopEvaluator(metrics=metrics)
