@@ -8,7 +8,7 @@ from .classication import (
     ConfusionMatrixEvaluationMetrics,
 )
 from .detection import DetectionEvaluationMetrics, DetectionEvaluator
-from .evaluator import Evaluator, LoopEvaluator
+from .evaluator import EnsembleMember, Evaluator, LoopEvaluator
 from .metrics import EvaluationMetrics, LossEvaluationMetrics
 from .utils import print_evaluation_metrics
 
@@ -20,6 +20,7 @@ __all__ = [
     "ConfusionMatrixEvaluationMetrics",
     "DetectionEvaluator",
     "DetectionEvaluationMetrics",
+    "EnsembleMember",
     "EvaluationMetrics",
     "Evaluator",
     "LossEvaluationMetrics",

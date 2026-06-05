@@ -7,7 +7,12 @@ from typing import Any
 import pytest
 import torch
 
-from vision_studio.evaluate import ClassificationEvaluationMetrics, LoopEvaluator
+from vision_studio.augmentation import Resize
+from vision_studio.evaluate import (
+    ClassificationEvaluationMetrics,
+    EnsembleMember,
+    LoopEvaluator,
+)
 from vision_studio.inference.simple import EnsembleConfig
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter
@@ -47,6 +52,21 @@ class _ConstantModel(BaseModel):
 class _FailingModel(_ConstantModel):
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         raise RuntimeError("model failed")
+
+
+class _ShapeCheckingModel(_ConstantModel):
+    def __init__(self, expected_size: tuple[int, int], logits: torch.Tensor):
+        super().__init__(logits=logits, loss=0.2)
+        self.expected_size = expected_size
+        self.seen_shapes: list[tuple[int, ...]] = []
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        self.seen_shapes.append(tuple(inputs.shape))
+        if tuple(inputs.shape[-2:]) != self.expected_size:
+            raise RuntimeError(
+                f"expected image size {self.expected_size}, got {tuple(inputs.shape[-2:])}"
+            )
+        return super().forward(inputs)
 
 
 class _RecordingReporter(BaseReporter):
@@ -254,3 +274,104 @@ def test_evaluate_ensemble_reports_with_configured_reporter() -> None:
     assert reporter.started == 1
     assert reporter.finished == 1
     assert reporter.logged == [{"evaluation/loss": pytest.approx(0.25)}]
+
+
+def test_evaluate_ensemble_members_applies_member_augmentations() -> None:
+    metrics = ClassificationEvaluationMetrics(num_classes=2, topk=(1,))
+    evaluator = LoopEvaluator(metrics=metrics)
+    small_model = _ShapeCheckingModel(
+        expected_size=(8, 8),
+        logits=torch.tensor([[0.9, 0.1], [0.2, 0.8]]),
+    )
+    large_model = _ShapeCheckingModel(
+        expected_size=(16, 16),
+        logits=torch.tensor([[0.8, 0.2], [0.1, 0.9]]),
+    )
+    batch = [
+        (
+            torch.rand(2, 3, 12, 12),
+            {"label": torch.tensor([0, 1], dtype=torch.long)},
+        )
+    ]
+
+    result = evaluator.evaluate_ensemble_members(
+        members=[
+            EnsembleMember(
+                model=small_model,
+                augmentation=Resize(8, 8),
+                name="small",
+            ),
+            EnsembleMember(
+                model=large_model,
+                augmentation=Resize(16, 16),
+                name="large",
+            ),
+        ],
+        dataset=batch,
+        config=EnsembleConfig(mode="soft"),
+    )
+
+    assert result["accuracy"] == 1.0
+    assert small_model.seen_shapes == [(2, 3, 8, 8)]
+    assert large_model.seen_shapes == [(2, 3, 16, 16)]
+
+
+def test_evaluate_ensemble_accepts_ensemble_members_for_augmentation_path() -> None:
+    metrics = ClassificationEvaluationMetrics(num_classes=2, topk=(1,))
+    evaluator = LoopEvaluator(metrics=metrics)
+    small_model = _ShapeCheckingModel(
+        expected_size=(8, 8),
+        logits=torch.tensor([[0.9, 0.1]]),
+    )
+    large_model = _ShapeCheckingModel(
+        expected_size=(16, 16),
+        logits=torch.tensor([[0.8, 0.2]]),
+    )
+    batch = [(torch.rand(1, 3, 12, 12), {"label": torch.tensor([0])})]
+
+    result = evaluator.evaluate_ensemble(
+        models=[
+            EnsembleMember(model=small_model, augmentation=Resize(8, 8)),
+            EnsembleMember(model=large_model, augmentation=Resize(16, 16)),
+        ],
+        dataset=batch,
+        config=EnsembleConfig(mode="soft"),
+    )
+
+    assert result["accuracy"] == 1.0
+    assert small_model.seen_shapes == [(1, 3, 8, 8)]
+    assert large_model.seen_shapes == [(1, 3, 16, 16)]
+
+
+def test_evaluate_ensemble_members_treats_augmentation_failure_as_model_failure() -> (
+    None
+):
+    class _FailingAugmentation(Resize):
+        def __call__(self, image, target):
+            raise RuntimeError("augmentation failed")
+
+    metrics = ClassificationEvaluationMetrics(num_classes=2, topk=(1,))
+    evaluator = LoopEvaluator(metrics=metrics)
+    good_model = _ShapeCheckingModel(
+        expected_size=(8, 8),
+        logits=torch.tensor([[0.9, 0.1]]),
+    )
+    skipped_model = _ShapeCheckingModel(
+        expected_size=(16, 16),
+        logits=torch.tensor([[0.1, 0.9]]),
+    )
+    batch = [(torch.rand(1, 3, 12, 12), {"label": torch.tensor([0])})]
+
+    result = evaluator.evaluate_ensemble_members(
+        members=[
+            EnsembleMember(good_model, Resize(8, 8), "good"),
+            EnsembleMember(skipped_model, _FailingAugmentation(16, 16), "bad"),
+        ],
+        dataset=batch,
+        config=EnsembleConfig(failure_policy="continue-with-warning"),
+    )
+
+    assert result["status"] == "completed_with_warnings"
+    assert result["failed_models"] == [1]
+    assert good_model.seen_shapes == [(1, 3, 8, 8)]
+    assert skipped_model.seen_shapes == []

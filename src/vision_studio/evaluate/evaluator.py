@@ -5,18 +5,30 @@ from __future__ import annotations
 import random
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Any
 
+import numpy as np
 import torch
 from torch import Tensor
 from torch.nn import functional as F
 
+from vision_studio.augmentation import Augmentation
 from vision_studio.inference.simple import EnsembleConfig
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter, LoggingReporter
 from vision_studio.types import ConfigurationError, EvaluatorOutput
 
 Batch = tuple[Tensor, dict[str, Any]]
+
+
+@dataclass(slots=True)
+class EnsembleMember:
+    """One model participating in ensemble evaluation with optional preprocessing."""
+
+    model: BaseModel
+    augmentation: Augmentation | None = None
+    name: str | None = None
 
 
 class Evaluator(ABC):
@@ -78,13 +90,28 @@ class LoopEvaluator(Evaluator):
     @torch.no_grad()
     def evaluate_ensemble(
         self,
-        models: list[BaseModel],
+        models: list[BaseModel | EnsembleMember],
         dataset: Iterable[Batch],
         config: EnsembleConfig | None = None,
     ) -> dict[str, Any]:
         """Evaluate an ensemble over a dataset and return flat metrics plus metadata."""
+        members = [
+            model if isinstance(model, EnsembleMember) else EnsembleMember(model=model)
+            for model in models
+        ]
+        return self.evaluate_ensemble_members(members, dataset, config)
+
+    @torch.no_grad()
+    def evaluate_ensemble_members(
+        self,
+        members: list[EnsembleMember],
+        dataset: Iterable[Batch],
+        config: EnsembleConfig | None = None,
+    ) -> dict[str, Any]:
+        """Evaluate ensemble members with optional per-model augmentations."""
         cfg = config or EnsembleConfig()
-        self._validate_ensemble_config(cfg, len(models))
+        self._validate_ensemble_config(cfg, len(members))
+        models = [member.model for member in members]
 
         self.metrics.reset()
         self.reporter.start()
@@ -104,12 +131,19 @@ class LoopEvaluator(Evaluator):
                 successful_indexes: list[int] = []
                 per_model_losses: list[Tensor] = []
 
-                for index, model in enumerate(models):
+                for index, member in enumerate(members):
                     if index in failed_models:
                         continue
                     try:
-                        logits = model(inputs)
-                        losses = model.compute_loss(logits, moved_targets)
+                        member_inputs, member_targets = self._member_batch(
+                            batch, member.augmentation
+                        )
+                        member_inputs = member_inputs.to(self.device)
+                        moved_member_targets = self._move_targets(member_targets)
+
+                        model = member.model
+                        logits = model(member_inputs)
+                        losses = model.compute_loss(logits, moved_member_targets)
                         outputs = model.postprocess(logits)
                         pred = self._extract_prediction_tensor(outputs)
                         per_model_preds.append(pred.detach().cpu())
@@ -213,6 +247,111 @@ class LoopEvaluator(Evaluator):
     @staticmethod
     def _failed_model_list(failed_models: set[int]) -> list[int]:
         return sorted(failed_models)
+
+    def _member_batch(
+        self,
+        batch: Batch,
+        augmentation: Augmentation | None,
+    ) -> Batch:
+        if augmentation is None:
+            return batch
+
+        inputs, targets = batch
+        if inputs.ndim != 4:
+            raise ConfigurationError(
+                "Per-member augmentation requires batched image tensors with shape "
+                "[batch, channels, height, width]."
+            )
+
+        images: list[Tensor] = []
+        sample_targets: list[dict[str, Any]] = []
+        for index, image in enumerate(inputs):
+            sample_target = self._sample_target(targets, index)
+            aug_image, aug_target = augmentation(
+                self._tensor_image_to_numpy(image),
+                sample_target,
+            )
+            images.append(self._augmentation_image_to_tensor(aug_image))
+            sample_targets.append(aug_target)
+
+        return torch.stack(images, dim=0), self._merge_sample_targets(sample_targets)
+
+    @staticmethod
+    def _sample_target(targets: dict[str, Any], index: int) -> dict[str, Any]:
+        sample: dict[str, Any] = {}
+        for key, value in targets.items():
+            if isinstance(value, Tensor):
+                sample[key] = value[index] if value.ndim > 0 else value
+            elif isinstance(value, np.ndarray):
+                sample[key] = value[index] if value.ndim > 0 else value
+            elif isinstance(value, (list, tuple)):
+                sample[key] = value[index]
+            else:
+                sample[key] = value
+        return sample
+
+    @staticmethod
+    def _merge_sample_targets(samples: list[dict[str, Any]]) -> dict[str, Any]:
+        merged: dict[str, Any] = {}
+        if not samples:
+            return merged
+
+        for key in samples[0]:
+            values = [sample[key] for sample in samples]
+            if all(isinstance(value, Tensor) for value in values):
+                merged[key] = torch.stack(
+                    [value if value.ndim > 0 else value.reshape(()) for value in values]
+                )
+            elif all(isinstance(value, np.ndarray) for value in values):
+                try:
+                    merged[key] = np.stack(values, axis=0)
+                except ValueError:
+                    merged[key] = values
+            else:
+                merged[key] = values
+        return merged
+
+    @staticmethod
+    def _tensor_image_to_numpy(image: Tensor) -> np.ndarray:
+        image = image.detach().cpu()
+        if image.ndim != 3:
+            raise ConfigurationError(
+                "Per-member augmentation requires image tensors with shape "
+                "[channels, height, width]."
+            )
+        array = image.permute(1, 2, 0).numpy()
+        if np.issubdtype(array.dtype, np.floating):
+            max_value = float(np.nanmax(array)) if array.size else 0.0
+            min_value = float(np.nanmin(array)) if array.size else 0.0
+            if 0.0 <= min_value and max_value <= 1.0:
+                array = array * 255.0
+        array = np.clip(array, 0, 255).astype(np.uint8)
+        if array.shape[-1] == 1:
+            return array[..., 0]
+        return array
+
+    @staticmethod
+    def _augmentation_image_to_tensor(image: Tensor | np.ndarray) -> Tensor:
+        if isinstance(image, Tensor):
+            tensor = image.detach().cpu()
+            if tensor.ndim == 2:
+                tensor = tensor.unsqueeze(0)
+            elif tensor.ndim == 3 and tensor.shape[0] not in {1, 3, 4}:
+                tensor = tensor.permute(2, 0, 1)
+            return tensor.float()
+
+        array = np.asarray(image)
+        if array.ndim == 2:
+            array = array[..., None]
+        tensor = torch.as_tensor(array)
+        if tensor.ndim != 3:
+            raise ConfigurationError(
+                "Per-member augmentation must return an image with 2 or 3 dimensions."
+            )
+        tensor = tensor.permute(2, 0, 1).contiguous().float()
+        if np.issubdtype(array.dtype, np.integer):
+            tensor = tensor / 255.0
+        return tensor
 
     def _validate_ensemble_config(
         self,
