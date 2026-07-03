@@ -2,6 +2,7 @@
 
 from pathlib import Path
 
+import numpy as np
 import pytest
 import torch
 from torch.optim import SGD
@@ -93,3 +94,22 @@ def test_trainer_checkpoint_enabled_matches_checkpoint_path_configuration(
         ),
     )
     assert enabled_trainer.checkpoint_enabled() is True
+
+
+def test_trainer_collates_numpy_hwc_images_to_chw_float_tensors() -> None:
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = SGD([parameter], lr=0.1)
+    trainer = _StubTrainer(optimizer=optimizer)
+    raw_batch = [
+        (
+            np.full((4, 5, 3), 255, dtype=np.uint8),
+            {"label": 0},
+        )
+    ]
+
+    inputs, targets = trainer.move_batch_to_device(raw_batch)
+
+    assert inputs.shape == (1, 3, 4, 5)
+    assert inputs.dtype == torch.float32
+    assert torch.equal(inputs, torch.ones((1, 3, 4, 5)))
+    assert torch.equal(targets["label"], torch.tensor([0]))
