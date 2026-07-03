@@ -4,8 +4,7 @@ from typing import Any
 import numpy as np
 import torch
 from PIL import Image
-
-from .base import Dataset
+from torch.utils.data import Dataset
 
 
 class ImageNetClassificationDataset(Dataset):

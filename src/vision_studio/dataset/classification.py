@@ -5,8 +5,7 @@ from pathlib import Path
 from typing import Any
 
 from PIL import Image
-
-from .base import Dataset
+from torch.utils.data import Dataset
 
 
 class ImageClassificationDataset(Dataset):
