@@ -9,9 +9,7 @@ from vision_studio.evaluate.evaluator import LoopEvaluator
 from vision_studio.models.base import BaseModel
 from vision_studio.types import (
     EvaluationError,
-    InputSpec,
     LossOutput,
-    OutputSpec,
     PostprocessOutput,
 )
 
@@ -34,14 +32,6 @@ class _StubMetrics:
 
 
 class _StubModel(BaseModel):
-    @property
-    def input_spec(self) -> InputSpec:
-        return {}
-
-    @property
-    def output_spec(self) -> OutputSpec:
-        return {}
-
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return inputs
 

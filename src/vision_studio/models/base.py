@@ -25,16 +25,14 @@ class BaseModel(nn.Module, ABC):
     # Input/Output specifications
     # -------------------------
     @property
-    @abstractmethod
     def input_spec(self) -> InputSpec:
-        """Define expected input shape, dtype, and device."""
-        raise NotImplementedError
+        """Define expected input shape, dtype, and device when available."""
+        return {}
 
     @property
-    @abstractmethod
     def output_spec(self) -> OutputSpec:
-        """Define output shape, dtype from forward()."""
-        raise NotImplementedError
+        """Define output shape and dtype from forward() when available."""
+        return {}
 
     # -------------------------
     # Core forward / inference

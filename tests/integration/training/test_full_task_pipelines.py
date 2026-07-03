@@ -51,14 +51,6 @@ class _ClassificationModel(BaseModel):
         self.seen_input_devices: list[torch.device] = []
         self.seen_target_devices: list[torch.device] = []
 
-    @property
-    def input_spec(self):
-        return {}
-
-    @property
-    def output_spec(self):
-        return {}
-
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         self.seen_input_devices.append(inputs.device)
         return self.classifier(inputs.flatten(start_dim=1))
@@ -90,14 +82,6 @@ class _DetectionModel(BaseModel):
         self.score_bias = torch.nn.Parameter(torch.tensor(0.0))
         self.seen_input_devices: list[torch.device] = []
         self.seen_box_devices: list[torch.device] = []
-
-    @property
-    def input_spec(self):
-        return {}
-
-    @property
-    def output_spec(self):
-        return {}
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         self.seen_input_devices.append(inputs.device)
@@ -170,14 +154,6 @@ class _SegmentationModel(BaseModel):
         self.bias = torch.nn.Parameter(torch.tensor(0.0))
         self.seen_input_devices: list[torch.device] = []
         self.seen_mask_devices: list[torch.device] = []
-
-    @property
-    def input_spec(self):
-        return {}
-
-    @property
-    def output_spec(self):
-        return {}
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         self.seen_input_devices.append(inputs.device)

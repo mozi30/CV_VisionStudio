@@ -19,9 +19,7 @@ from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter
 from vision_studio.types import (
     ConfigurationError,
-    InputSpec,
     LossOutput,
-    OutputSpec,
     PostprocessOutput,
 )
 
@@ -31,14 +29,6 @@ class _ConstantModel(BaseModel):
         super().__init__()
         self._logits = logits
         self._loss = loss
-
-    @property
-    def input_spec(self) -> InputSpec:
-        return {}
-
-    @property
-    def output_spec(self) -> OutputSpec:
-        return {}
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return self._logits[: inputs.shape[0]].clone()

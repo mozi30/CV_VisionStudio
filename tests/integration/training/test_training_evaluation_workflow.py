@@ -25,14 +25,6 @@ class _Model(BaseModel):
         super().__init__()
         self.weight = torch.nn.Parameter(torch.tensor(1.0))
 
-    @property
-    def input_spec(self):
-        return {}
-
-    @property
-    def output_spec(self):
-        return {}
-
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return inputs * self.weight
 
