@@ -13,7 +13,11 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 
-from vision_studio.augmentation.base import apply_transform
+from vision_studio.augmentation.base import (
+    Augmentation,
+    TorchVisionAugmentation,
+    apply_transform,
+)
 from vision_studio.inference.simple import EnsembleConfig
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter, LoggingReporter
@@ -267,15 +271,36 @@ class LoopEvaluator(Evaluator):
         sample_targets: list[dict[str, Any]] = []
         for index, image in enumerate(inputs):
             sample_target = self._sample_target(targets, index)
+            source_image: Tensor | np.ndarray
+            if self._preserves_tensor_inputs(augmentation):
+                source_image = image.detach().cpu()
+            else:
+                source_image = self._tensor_image_to_numpy(image)
             aug_image, aug_target = apply_transform(
                 augmentation,
-                self._tensor_image_to_numpy(image),
+                source_image,
                 sample_target,
             )
             images.append(self._augmentation_image_to_tensor(aug_image))
             sample_targets.append(aug_target)
 
         return torch.stack(images, dim=0), self._merge_sample_targets(sample_targets)
+
+    @staticmethod
+    def _preserves_tensor_inputs(augmentation: Callable[..., Any]) -> bool:
+        if isinstance(augmentation, TorchVisionAugmentation):
+            return True
+        if not isinstance(augmentation, Augmentation):
+            return True
+
+        nested_transforms = getattr(augmentation, "transforms", None)
+        if nested_transforms is None:
+            return False
+        return all(
+            not isinstance(transform, Augmentation)
+            or isinstance(transform, TorchVisionAugmentation)
+            for transform in nested_transforms
+        )
 
     @staticmethod
     def _sample_target(targets: dict[str, Any], index: int) -> dict[str, Any]:
