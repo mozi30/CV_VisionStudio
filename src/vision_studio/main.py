@@ -6,13 +6,11 @@ import sys
 
 import torch
 from torch.optim import Adam
-from torchvision.transforms import Compose
+from torchvision.transforms import v2
 
-from vision_studio.augmentation import HorizontalFlip, Resize
 from vision_studio.inference import SimpleInference
 from vision_studio.models import ImageClassifier
 from vision_studio.trainer import VisionTrainer
-from vision_studio.transforms import ImageToArray, Normalize, ToTensor
 
 
 def _model_collections_parser() -> argparse.ArgumentParser:
@@ -130,22 +128,28 @@ def main() -> None:
     # }
 
     # Create augmentation pipeline for classification
-    _train_transforms = Compose(
+    _train_transforms = v2.Compose(
         [
-            ImageToArray(),  # Convert PIL to numpy if needed
-            HorizontalFlip(),  # Random horizontal flip
-            Resize(image_size, image_size),  # Resize to model input size
-            ToTensor(),  # Convert to tensor (0-1 range)
-            Normalize(),  # Normalize using ImageNet stats
+            v2.RandomHorizontalFlip(),
+            v2.Resize((image_size, image_size)),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            ),
         ]
     )
 
-    _val_transforms = Compose(
+    _val_transforms = v2.Compose(
         [
-            ImageToArray(),
-            Resize(image_size, image_size),
-            ToTensor(),
-            Normalize(),
+            v2.Resize((image_size, image_size)),
+            v2.ToImage(),
+            v2.ToDtype(torch.float32, scale=True),
+            v2.Normalize(
+                mean=[0.485, 0.456, 0.406],
+                std=[0.229, 0.224, 0.225],
+            ),
         ]
     )
 

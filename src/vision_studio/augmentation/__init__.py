@@ -1,4 +1,4 @@
-from .base import Augmentation, Compose, OneOf
+from .base import Augmentation, Compose, OneOf, TorchVisionAugmentation
 from .image_augmentations import (
     Brightness,
     ColorJitter,
@@ -40,6 +40,7 @@ __all__ = [
     "Augmentation",
     "Compose",
     "OneOf",
+    "TorchVisionAugmentation",
     "HorizontalFlip",
     "VerticalFlip",
     "Rotate",

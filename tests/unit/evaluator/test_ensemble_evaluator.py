@@ -6,6 +6,7 @@ from typing import Any
 
 import pytest
 import torch
+from torchvision.transforms import v2
 
 from vision_studio.augmentation import Resize
 from vision_studio.evaluate import (
@@ -341,6 +342,30 @@ def test_evaluate_ensemble_accepts_ensemble_members_for_augmentation_path() -> N
     assert result["accuracy"] == 1.0
     assert small_model.seen_shapes == [(1, 3, 8, 8)]
     assert large_model.seen_shapes == [(1, 3, 16, 16)]
+
+
+def test_evaluate_ensemble_members_accepts_torchvision_augmentation() -> None:
+    metrics = ClassificationEvaluationMetrics(num_classes=2, topk=(1,))
+    evaluator = LoopEvaluator(metrics=metrics)
+    model = _ShapeCheckingModel(
+        expected_size=(8, 8),
+        logits=torch.tensor([[0.9, 0.1]]),
+    )
+    batch = [(torch.rand(1, 3, 12, 12), {"label": torch.tensor([0])})]
+
+    result = evaluator.evaluate_ensemble_members(
+        members=[
+            EnsembleMember(
+                model=model,
+                augmentation=v2.Resize((8, 8)),
+            )
+        ],
+        dataset=batch,
+        config=EnsembleConfig(mode="soft"),
+    )
+
+    assert result["accuracy"] == 1.0
+    assert model.seen_shapes == [(1, 3, 8, 8)]
 
 
 def test_evaluate_ensemble_members_treats_augmentation_failure_as_model_failure() -> (
