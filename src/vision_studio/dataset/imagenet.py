@@ -7,6 +7,8 @@ from PIL import Image
 from torch.utils.data import Dataset
 from torchvision.transforms import functional as F
 
+from vision_studio.augmentation.base import apply_transform
+
 
 class ImageNetClassificationDataset(Dataset):
     """ImageNet classification style dataset with class folders in train/val/test directories."""
@@ -105,14 +107,7 @@ class ImageNetClassificationDataset(Dataset):
         image: Image.Image,
         target: dict[str, Any],
     ) -> tuple[Any, dict[str, Any]]:
-        try:
-            result = self.transform(image, target)
-        except TypeError:
-            return self.transform(image), target
-
-        if isinstance(result, tuple) and len(result) == 2:
-            return result
-        return result, target
+        return apply_transform(self.transform, image, target)
 
     def get_class_sample_counts(self) -> dict[int, int] | None:
         """Return a mapping from class id to sample count, or None if not available."""
