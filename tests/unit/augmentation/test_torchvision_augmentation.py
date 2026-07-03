@@ -3,7 +3,7 @@ from __future__ import annotations
 import torch
 from torchvision.transforms import v2
 
-from vision_studio.augmentation import Compose, TorchVisionAugmentation
+from vision_studio.augmentation import Compose, HorizontalFlip, TorchVisionAugmentation
 
 
 def test_compose_accepts_torchvision_classification_transforms() -> None:
@@ -72,3 +72,11 @@ def test_torchvision_augmentation_adapter_wraps_single_transform() -> None:
         transformed_target["boxes"],
         torch.tensor([[1.0, 1.5, 5.0, 4.0]]),
     )
+
+
+def test_compose_supports_legacy_augmentation_without_target() -> None:
+    image = torch.zeros((4, 5, 3), dtype=torch.uint8).numpy()
+
+    transformed = Compose([HorizontalFlip()])(image)
+
+    assert transformed.shape == image.shape

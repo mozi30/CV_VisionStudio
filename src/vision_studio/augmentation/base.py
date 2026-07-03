@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import random
 from abc import ABC, abstractmethod
 from collections.abc import Callable
@@ -27,7 +28,11 @@ class Augmentation(ABC):
 
         def wrapped(self, image: Any, target: dict[str, Any] | None = None):
             if random.random() < self.p:
-                return original_call(self, image, target)
+                call_target = {} if target is None else target
+                result = original_call(self, image, call_target)
+                if target is None and isinstance(result, tuple) and len(result) == 2:
+                    return result[0]
+                return result
             if target is None:
                 return image
             return image, target
@@ -55,7 +60,10 @@ class Compose(Augmentation):
     ) -> Any:
         if target is None:
             for transform in self.transforms:
-                image = transform(image)
+                if isinstance(transform, Augmentation):
+                    image, _ = apply_transform(transform, image, {})
+                else:
+                    image = transform(image)
             return image
 
         for transform in self.transforms:
@@ -85,6 +93,9 @@ class OneOf(Augmentation):
     ) -> Any:
         transform = random.choices(self.transforms, weights=self.probs, k=1)[0]
         if target is None:
+            if isinstance(transform, Augmentation):
+                image, _ = apply_transform(transform, image, {})
+                return image
             return transform(image)
         return apply_transform(transform, image, target)
 
@@ -120,7 +131,10 @@ def apply_transform(
 
     tv_image = _image_to_torchvision(image)
     tv_target = _target_to_torchvision(tv_image, target)
-    result = transform(tv_image, tv_target)
+    if _accepts_target(transform):
+        result = transform(tv_image, tv_target)
+    else:
+        result = transform(tv_image)
 
     if isinstance(result, tuple) and len(result) == 2:
         transformed_image, transformed_target = result
@@ -128,6 +142,25 @@ def apply_transform(
         transformed_image, transformed_target = result, tv_target
 
     return transformed_image, _target_from_torchvision(transformed_target)
+
+
+def _accepts_target(transform: Callable[..., Any]) -> bool:
+    callable_obj = getattr(transform, "forward", transform)
+    try:
+        signature = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return True
+
+    positional_count = 0
+    for parameter in signature.parameters.values():
+        if parameter.kind is inspect.Parameter.VAR_POSITIONAL:
+            return True
+        if parameter.kind in {
+            inspect.Parameter.POSITIONAL_ONLY,
+            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+        }:
+            positional_count += 1
+    return positional_count >= 2
 
 
 def _target_to_torchvision(image: Any, target: dict[str, Any]) -> dict[str, Any]:
