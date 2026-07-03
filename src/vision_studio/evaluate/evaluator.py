@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import random
 from abc import ABC, abstractmethod
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,7 +13,7 @@ import torch
 from torch import Tensor
 from torch.nn import functional as F
 
-from vision_studio.augmentation import Augmentation
+from vision_studio.augmentation.base import apply_transform
 from vision_studio.inference.simple import EnsembleConfig
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter, LoggingReporter
@@ -27,7 +27,7 @@ class EnsembleMember:
     """One model participating in ensemble evaluation with optional preprocessing."""
 
     model: BaseModel
-    augmentation: Augmentation | None = None
+    augmentation: Callable[..., Any] | None = None
     name: str | None = None
 
 
@@ -251,7 +251,7 @@ class LoopEvaluator(Evaluator):
     def _member_batch(
         self,
         batch: Batch,
-        augmentation: Augmentation | None,
+        augmentation: Callable[..., Any] | None,
     ) -> Batch:
         if augmentation is None:
             return batch
@@ -267,7 +267,8 @@ class LoopEvaluator(Evaluator):
         sample_targets: list[dict[str, Any]] = []
         for index, image in enumerate(inputs):
             sample_target = self._sample_target(targets, index)
-            aug_image, aug_target = augmentation(
+            aug_image, aug_target = apply_transform(
+                augmentation,
                 self._tensor_image_to_numpy(image),
                 sample_target,
             )

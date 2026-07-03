@@ -5,6 +5,7 @@ import numpy as np
 import torch
 from PIL import Image
 from torch.utils.data import Dataset
+from torchvision.transforms import functional as F
 
 
 class ImageNetClassificationDataset(Dataset):
@@ -75,12 +76,14 @@ class ImageNetClassificationDataset(Dataset):
         img_path, label = self.image_paths[index]
 
         image = Image.open(img_path).convert("RGB")
-        image = np.array(image)
 
         target = {"label": label}
 
         if self.transform:
-            image, target = self.transform(image, target)
+            image, target = self._apply_transform(image, target)
+
+        if isinstance(image, Image.Image):
+            image = F.to_tensor(image)
 
         # final conversion: NumPy HWC -> Tensor CHW
         if isinstance(image, np.ndarray):
@@ -96,6 +99,20 @@ class ImageNetClassificationDataset(Dataset):
                 image = image / 255.0
 
         return image, target
+
+    def _apply_transform(
+        self,
+        image: Image.Image,
+        target: dict[str, Any],
+    ) -> tuple[Any, dict[str, Any]]:
+        try:
+            result = self.transform(image, target)
+        except TypeError:
+            return self.transform(image), target
+
+        if isinstance(result, tuple) and len(result) == 2:
+            return result
+        return result, target
 
     def get_class_sample_counts(self) -> dict[int, int] | None:
         """Return a mapping from class id to sample count, or None if not available."""
