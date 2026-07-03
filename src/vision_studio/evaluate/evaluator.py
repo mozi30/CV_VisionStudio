@@ -43,6 +43,7 @@ class Evaluator(ABC):
         self,
         model: Any,
         dataset: Iterable[Batch],
+        manage_reporter: bool = True,
     ) -> EvaluatorOutput:
         """Run evaluation for a model on a dataset and return metrics."""
         raise NotImplementedError
@@ -67,29 +68,35 @@ class LoopEvaluator(Evaluator):
         self,
         model: BaseModel,
         dataset: Iterable[Batch],
+        manage_reporter: bool = True,
     ) -> EvaluatorOutput:
         """Evaluate a model over a dataset and return aggregated metrics."""
         self.metrics.reset()
-        self.reporter.start()
+        if manage_reporter:
+            self.reporter.start()
         was_training = model.training
         model.eval()
 
-        for batch in dataset:
-            inputs, targets = batch
-            inputs = inputs.to(self.device)
-            moved_targets = self._move_targets(targets)
+        try:
+            for batch in dataset:
+                inputs, targets = batch
+                inputs = inputs.to(self.device)
+                moved_targets = self._move_targets(targets)
 
-            logits = model(inputs)
-            losses = model.compute_loss(logits, moved_targets)
-            outputs = model.postprocess(logits)
-            self.metrics.update(outputs, moved_targets, losses["loss"])
+                logits = model(inputs)
+                losses = model.compute_loss(logits, moved_targets)
+                outputs = model.postprocess(logits)
+                self.metrics.update(outputs, moved_targets, losses["loss"])
 
-        if was_training:
-            model.train()
-        result = self.metrics.compute()
-        self.reporter.log({"evaluation/loss": result["loss"]})
-        self.reporter.finish()
-        return result
+            result = self.metrics.compute()
+            if manage_reporter:
+                self.reporter.log({"evaluation/loss": result["loss"]})
+            return result
+        finally:
+            if was_training:
+                model.train()
+            if manage_reporter:
+                self.reporter.finish()
 
     @torch.no_grad()
     def evaluate_ensemble(
@@ -97,13 +104,14 @@ class LoopEvaluator(Evaluator):
         models: list[BaseModel | EnsembleMember],
         dataset: Iterable[Batch],
         config: EnsembleConfig | None = None,
+        manage_reporter: bool = True,
     ) -> dict[str, Any]:
         """Evaluate an ensemble over a dataset and return flat metrics plus metadata."""
         members = [
             model if isinstance(model, EnsembleMember) else EnsembleMember(model=model)
             for model in models
         ]
-        return self.evaluate_ensemble_members(members, dataset, config)
+        return self.evaluate_ensemble_members(members, dataset, config, manage_reporter)
 
     @torch.no_grad()
     def evaluate_ensemble_members(
@@ -111,6 +119,7 @@ class LoopEvaluator(Evaluator):
         members: list[EnsembleMember],
         dataset: Iterable[Batch],
         config: EnsembleConfig | None = None,
+        manage_reporter: bool = True,
     ) -> dict[str, Any]:
         """Evaluate ensemble members with optional per-model augmentations."""
         cfg = config or EnsembleConfig()
@@ -118,7 +127,8 @@ class LoopEvaluator(Evaluator):
         models = [member.model for member in members]
 
         self.metrics.reset()
-        self.reporter.start()
+        if manage_reporter:
+            self.reporter.start()
         model_states = self._capture_model_states(models)
         failed_models: set[int] = set()
 
@@ -191,11 +201,13 @@ class LoopEvaluator(Evaluator):
                     "failed_models": failed,
                 }
             )
-            self.reporter.log({"evaluation/loss": result["loss"]})
+            if manage_reporter:
+                self.reporter.log({"evaluation/loss": result["loss"]})
             return result
         finally:
             self._restore_model_states(models, model_states)
-            self.reporter.finish()
+            if manage_reporter:
+                self.reporter.finish()
 
     def prepare_ensemble_handoff(
         self, ensemble_output: dict[str, Any]

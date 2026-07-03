@@ -7,6 +7,7 @@ import torch
 
 from vision_studio.evaluate.evaluator import LoopEvaluator
 from vision_studio.models.base import BaseModel
+from vision_studio.reporting import BaseReporter
 from vision_studio.types import (
     EvaluationError,
     LossOutput,
@@ -29,6 +30,23 @@ class _StubMetrics:
 
     def compute(self):
         return {"loss": 0.5}
+
+
+class _RecordingReporter(BaseReporter):
+    def __init__(self) -> None:
+        super().__init__()
+        self.started = 0
+        self.finished = 0
+        self.logged: list[dict[str, float]] = []
+
+    def start(self) -> None:
+        self.started += 1
+
+    def log(self, metrics: dict[str, float], step: int | None = None) -> None:
+        self.logged.append(metrics)
+
+    def finish(self) -> None:
+        self.finished += 1
 
 
 class _StubModel(BaseModel):
@@ -76,6 +94,36 @@ def test_loop_evaluator_single_model_result_shape_remains_flat() -> None:
     assert result == {"loss": 0.5}
     assert "status" not in result
     assert "aggregation_metadata" not in result
+
+
+def test_loop_evaluator_manages_reporter_for_standalone_evaluation() -> None:
+    reporter = _RecordingReporter()
+    evaluator = LoopEvaluator(metrics=_StubMetrics(), reporter=reporter)
+    model = _StubModel()
+    dataset: Iterable[tuple[torch.Tensor, dict[str, torch.Tensor]]] = [
+        (torch.ones(2, 2), {"label": torch.ones(2, dtype=torch.long)})
+    ]
+
+    evaluator.evaluate(model, dataset)
+
+    assert reporter.started == 1
+    assert reporter.finished == 1
+    assert reporter.logged == [{"evaluation/loss": 0.5}]
+
+
+def test_loop_evaluator_can_skip_reporter_scope_for_trainer_owned_session() -> None:
+    reporter = _RecordingReporter()
+    evaluator = LoopEvaluator(metrics=_StubMetrics(), reporter=reporter)
+    model = _StubModel()
+    dataset: Iterable[tuple[torch.Tensor, dict[str, torch.Tensor]]] = [
+        (torch.ones(2, 2), {"label": torch.ones(2, dtype=torch.long)})
+    ]
+
+    evaluator.evaluate(model, dataset, manage_reporter=False)
+
+    assert reporter.started == 0
+    assert reporter.finished == 0
+    assert reporter.logged == []
 
 
 def test_prepare_ensemble_handoff_normalizes_output() -> None:
