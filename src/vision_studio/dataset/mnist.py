@@ -7,8 +7,7 @@ from typing import Any
 
 import numpy as np
 from PIL import Image
-
-from .base import Dataset
+from torch.utils.data import Dataset
 
 
 class MnistDataset(Dataset):

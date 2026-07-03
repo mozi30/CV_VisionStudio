@@ -1,4 +1,5 @@
-from .base import Dataset
+from torch.utils.data import Dataset
+
 from .classification import ImageClassificationDataset
 from .coco import CocoDataset
 from .imagenet import ImageNetClassificationDataset
