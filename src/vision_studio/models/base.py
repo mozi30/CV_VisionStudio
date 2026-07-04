@@ -12,12 +12,12 @@ from ..types import InputSpec, LossOutput, OutputSpec, PostprocessOutput
 
 
 class BaseModel(nn.Module, ABC):
-    """Strict base interface for ML/CV models.
+    """Base interface for ML/CV models.
 
     Key design principles:
     - forward() returns ONLY logits/raw outputs (Tensor) for speed
     - postprocess() handles task-specific postprocessing (probabilities, labels, etc.)
-    - Input/output specs are explicitly defined
+    - Input/output specs can be overridden when useful
     - Strict separation between forward pass and postprocessing
     """
 

@@ -21,8 +21,8 @@ from vision_studio.augmentation.base import (
 from vision_studio.inference.simple import EnsembleConfig
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter, LoggingReporter
-from vision_studio.trainer.base import move_to_device
 from vision_studio.types import ConfigurationError, EvaluatorOutput
+from vision_studio.utils import move_to_device
 
 Batch = tuple[Tensor, dict[str, Any]]
 
