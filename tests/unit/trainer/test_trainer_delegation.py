@@ -113,3 +113,27 @@ def test_trainer_collates_numpy_hwc_images_to_chw_float_tensors() -> None:
     assert inputs.dtype == torch.float32
     assert torch.equal(inputs, torch.ones((1, 3, 4, 5)))
     assert torch.equal(targets["label"], torch.tensor([0]))
+
+
+def test_trainer_moves_nested_target_tensors_to_device() -> None:
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = SGD([parameter], lr=0.1)
+    trainer = _StubTrainer(optimizer=optimizer, device="cpu")
+    batch = (
+        torch.ones(1, 3, 4, 4),
+        {
+            "detections": [
+                {
+                    "boxes": torch.tensor([[0.0, 0.0, 1.0, 1.0]]),
+                    "labels": torch.tensor([1]),
+                }
+            ],
+            "metadata": ("sample-a", torch.tensor([2])),
+        },
+    )
+
+    _, targets = trainer.move_batch_to_device(batch)
+
+    assert targets["detections"][0]["boxes"].device.type == "cpu"
+    assert targets["detections"][0]["labels"].device.type == "cpu"
+    assert targets["metadata"][1].device.type == "cpu"

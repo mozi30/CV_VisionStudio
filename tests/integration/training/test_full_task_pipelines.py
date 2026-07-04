@@ -70,6 +70,16 @@ class _DetectionDataset(Dataset):
 
     def __getitem__(self, index: int):
         image = np.full((6, 6, 3), 32 + index, dtype=np.uint8)
+        if index == 1:
+            return image, {
+                "boxes": torch.tensor(
+                    [
+                        [1.0, 1.0, 4.0, 4.0],
+                        [0.0, 0.0, 2.0, 2.0],
+                    ]
+                ),
+                "labels": torch.tensor([0, 0], dtype=torch.long),
+            }
         return image, {
             "boxes": torch.tensor([[1.0, 1.0, 4.0, 4.0]]),
             "labels": torch.tensor([0], dtype=torch.long),
@@ -91,21 +101,32 @@ class _DetectionModel(BaseModel):
     def postprocess(self, logits: torch.Tensor):
         batch_size = logits.shape[0]
         scores = torch.sigmoid(logits[:, 0])
-        return [
-            {
-                "boxes": torch.tensor(
-                    [[1.0, 1.0, 4.0, 4.0]],
+        predictions = []
+        for index in range(batch_size):
+            boxes = torch.tensor([[1.0, 1.0, 4.0, 4.0]], device=logits.device)
+            if index == 1:
+                boxes = torch.tensor(
+                    [
+                        [1.0, 1.0, 4.0, 4.0],
+                        [0.0, 0.0, 2.0, 2.0],
+                    ],
                     device=logits.device,
-                ),
-                "scores": scores[index : index + 1],
-                "labels": torch.zeros(1, dtype=torch.long, device=logits.device),
-            }
-            for index in range(batch_size)
-        ]
+                )
+            predictions.append(
+                {
+                    "boxes": boxes,
+                    "scores": scores[index].expand(boxes.shape[0]),
+                    "labels": torch.zeros(
+                        boxes.shape[0],
+                        dtype=torch.long,
+                        device=logits.device,
+                    ),
+                }
+            )
+        return predictions
 
     def compute_loss(self, logits: torch.Tensor, targets: dict[str, Any]):
-        boxes = targets["boxes"]
-        if isinstance(boxes, torch.Tensor):
+        for boxes in targets["boxes"]:
             self.seen_box_devices.append(boxes.device)
         return {"loss": logits.mean() * 0.0 + self.score_bias.square()}
 

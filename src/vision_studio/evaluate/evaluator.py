@@ -21,6 +21,7 @@ from vision_studio.augmentation.base import (
 from vision_studio.inference.simple import EnsembleConfig
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter, LoggingReporter
+from vision_studio.trainer.base import move_to_device
 from vision_studio.types import ConfigurationError, EvaluatorOutput
 
 Batch = tuple[Tensor, dict[str, Any]]
@@ -244,12 +245,7 @@ class LoopEvaluator(Evaluator):
         }
 
     def _move_targets(self, targets: dict[str, Any]) -> dict[str, Any]:
-        moved_targets: dict[str, Any] = {}
-        for key, value in targets.items():
-            moved_targets[key] = (
-                value.to(self.device) if isinstance(value, Tensor) else value
-            )
-        return moved_targets
+        return move_to_device(targets, self.device)
 
     @staticmethod
     def _capture_model_states(models: list[BaseModel]) -> list[bool]:

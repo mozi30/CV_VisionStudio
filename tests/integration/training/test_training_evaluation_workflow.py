@@ -38,6 +38,16 @@ class _RecordingReporter(BaseReporter):
         self.finished += 1
 
 
+class _DeviceRecordingEvaluator:
+    def __init__(self) -> None:
+        self.device = torch.device("meta")
+        self.seen_devices: list[torch.device] = []
+
+    def evaluate(self, model, dataset, manage_reporter: bool = True):
+        self.seen_devices.append(self.device)
+        return {"loss": 0.25}
+
+
 class _Model(BaseModel):
     def __init__(self) -> None:
         super().__init__()
@@ -126,3 +136,27 @@ def test_trainer_owns_reporting_scope_during_training_with_evaluation() -> None:
     assert evaluator_reporter.started == 0
     assert evaluator_reporter.finished == 0
     assert evaluator_reporter.logged == []
+
+
+def test_trainer_temporarily_syncs_evaluator_device_for_embedded_evaluation() -> None:
+    parameter = torch.nn.Parameter(torch.tensor(1.0))
+    optimizer = SGD([parameter], lr=0.1)
+    evaluator = _DeviceRecordingEvaluator()
+    trainer = VisionTrainer(
+        optimizer=optimizer,
+        evaluator=evaluator,
+        device="cpu",
+        settings=TrainerSettings(
+            epochs=1,
+            checkpoint_path=None,
+            best_checkpoint_count=0,
+        ),
+    )
+    model = _Model()
+    loader = [(torch.ones(2, 2), {"label": torch.ones(2, dtype=torch.long)})]
+
+    result = trainer.fit(model, loader, loader)
+
+    assert result["history"]["evaluation"][0]["loss"] == 0.25
+    assert evaluator.seen_devices == [torch.device("cpu")]
+    assert evaluator.device == torch.device("meta")

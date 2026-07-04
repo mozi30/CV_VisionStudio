@@ -91,9 +91,16 @@ class VisionTrainer(Trainer):
         model: BaseModel,
         val_loader: Iterable[Batch],
     ) -> EvaluatorOutput:
-        if self._accepts_manage_reporter(evaluator.evaluate):
-            return evaluator.evaluate(model, val_loader, manage_reporter=False)
-        return evaluator.evaluate(model, val_loader)
+        previous_device = getattr(evaluator, "device", None)
+        if previous_device is not None:
+            evaluator.device = self.device
+        try:
+            if self._accepts_manage_reporter(evaluator.evaluate):
+                return evaluator.evaluate(model, val_loader, manage_reporter=False)
+            return evaluator.evaluate(model, val_loader)
+        finally:
+            if previous_device is not None:
+                evaluator.device = previous_device
 
     @staticmethod
     def _accepts_manage_reporter(callable_obj: Any) -> bool:

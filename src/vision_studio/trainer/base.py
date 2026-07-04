@@ -25,6 +25,19 @@ from vision_studio.types import (
 Batch = tuple[Tensor, dict[str, Any]]
 
 
+def move_to_device(value: Any, device: torch.device | str) -> Any:
+    """Recursively move tensors nested in common batch containers."""
+    if isinstance(value, Tensor):
+        return value.to(device)
+    if isinstance(value, dict):
+        return {key: move_to_device(item, device) for key, item in value.items()}
+    if isinstance(value, list):
+        return [move_to_device(item, device) for item in value]
+    if isinstance(value, tuple):
+        return tuple(move_to_device(item, device) for item in value)
+    return value
+
+
 class Trainer(ABC):
     """Base training abstraction shared by concrete Trainer implementations."""
 
@@ -70,14 +83,7 @@ class Trainer(ABC):
 
         inputs = inputs.to(self.device)
 
-        moved_targets: dict[str, Any] = {}
-        for key, value in targets.items():
-            if isinstance(value, Tensor):
-                moved_targets[key] = value.to(self.device)
-            else:
-                moved_targets[key] = value
-
-        return inputs, moved_targets
+        return inputs, move_to_device(targets, self.device)
 
     def _is_collated_batch(self, batch: Any) -> bool:
         return (
