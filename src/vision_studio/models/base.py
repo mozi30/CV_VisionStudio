@@ -12,12 +12,12 @@ from ..types import InputSpec, LossOutput, OutputSpec, PostprocessOutput
 
 
 class BaseModel(nn.Module, ABC):
-    """Strict base interface for ML/CV models.
+    """Base interface for ML/CV models.
 
     Key design principles:
     - forward() returns ONLY logits/raw outputs (Tensor) for speed
     - postprocess() handles task-specific postprocessing (probabilities, labels, etc.)
-    - Input/output specs are explicitly defined
+    - Input/output specs can be overridden when useful
     - Strict separation between forward pass and postprocessing
     """
 
@@ -25,16 +25,14 @@ class BaseModel(nn.Module, ABC):
     # Input/Output specifications
     # -------------------------
     @property
-    @abstractmethod
     def input_spec(self) -> InputSpec:
-        """Define expected input shape, dtype, and device."""
-        raise NotImplementedError
+        """Define expected input shape, dtype, and device when available."""
+        return {}
 
     @property
-    @abstractmethod
     def output_spec(self) -> OutputSpec:
-        """Define output shape, dtype from forward()."""
-        raise NotImplementedError
+        """Define output shape and dtype from forward() when available."""
+        return {}
 
     # -------------------------
     # Core forward / inference

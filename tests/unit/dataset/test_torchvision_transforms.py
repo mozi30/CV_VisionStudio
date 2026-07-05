@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 import torch
 from PIL import Image
 from torchvision import transforms
@@ -57,3 +58,25 @@ def test_imagenet_dataset_accepts_standard_torchvision_pipeline(tmp_path) -> Non
     assert image.shape == (3, 2, 2)
     assert image.dtype == torch.float32
     assert target == {"label": 0}
+
+
+def test_imagenet_dataset_preserves_internal_transform_type_errors(tmp_path) -> None:
+    class_dir = tmp_path / "train" / "class-a"
+    class_dir.mkdir(parents=True)
+    Image.new("RGB", (6, 6), color=(128, 64, 32)).save(class_dir / "sample.jpg")
+
+    class BrokenTransform:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def __call__(self, image, target):
+            self.calls += 1
+            raise TypeError("internal transform bug")
+
+    transform = BrokenTransform()
+    dataset = ImageNetClassificationDataset(tmp_path, transform=transform)
+
+    with pytest.raises(TypeError, match="internal transform bug"):
+        dataset[0]
+
+    assert transform.calls == 1

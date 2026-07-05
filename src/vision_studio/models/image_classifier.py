@@ -16,7 +16,7 @@ class ImageClassifier(BaseModel):
 
     - forward() returns only logits (raw outputs)
     - postprocess() handles softmax, argmax, and probability computation
-    - Input/output specs are strictly defined
+    - Input/output specs are provided for this concrete model
     """
 
     def __init__(self, in_channels: int, num_classes: int) -> None:

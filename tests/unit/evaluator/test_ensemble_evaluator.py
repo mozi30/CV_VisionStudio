@@ -19,9 +19,7 @@ from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter
 from vision_studio.types import (
     ConfigurationError,
-    InputSpec,
     LossOutput,
-    OutputSpec,
     PostprocessOutput,
 )
 
@@ -31,14 +29,6 @@ class _ConstantModel(BaseModel):
         super().__init__()
         self._logits = logits
         self._loss = loss
-
-    @property
-    def input_spec(self) -> InputSpec:
-        return {}
-
-    @property
-    def output_spec(self) -> OutputSpec:
-        return {}
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return self._logits[: inputs.shape[0]].clone()
@@ -67,6 +57,18 @@ class _ShapeCheckingModel(_ConstantModel):
             raise RuntimeError(
                 f"expected image size {self.expected_size}, got {tuple(inputs.shape[-2:])}"
             )
+        return super().forward(inputs)
+
+
+class _InputRangeCheckingModel(_ConstantModel):
+    def __init__(self, logits: torch.Tensor):
+        super().__init__(logits=logits, loss=0.2)
+        self.seen_min: float | None = None
+        self.seen_max: float | None = None
+
+    def forward(self, inputs: torch.Tensor) -> torch.Tensor:
+        self.seen_min = float(inputs.min())
+        self.seen_max = float(inputs.max())
         return super().forward(inputs)
 
 
@@ -366,6 +368,31 @@ def test_evaluate_ensemble_members_accepts_torchvision_augmentation() -> None:
 
     assert result["accuracy"] == 1.0
     assert model.seen_shapes == [(1, 3, 8, 8)]
+
+
+def test_evaluate_ensemble_members_preserves_normalized_tensors_for_torchvision() -> (
+    None
+):
+    metrics = ClassificationEvaluationMetrics(num_classes=2, topk=(1,))
+    evaluator = LoopEvaluator(metrics=metrics)
+    model = _InputRangeCheckingModel(logits=torch.tensor([[0.9, 0.1]]))
+    normalized_input = torch.linspace(-2.0, 2.0, steps=3 * 8 * 8).reshape(1, 3, 8, 8)
+    batch = [(normalized_input, {"label": torch.tensor([0])})]
+
+    result = evaluator.evaluate_ensemble_members(
+        members=[
+            EnsembleMember(
+                model=model,
+                augmentation=v2.Identity(),
+            )
+        ],
+        dataset=batch,
+        config=EnsembleConfig(mode="soft"),
+    )
+
+    assert result["accuracy"] == 1.0
+    assert model.seen_min == pytest.approx(-2.0)
+    assert model.seen_max == pytest.approx(2.0)
 
 
 def test_evaluate_ensemble_members_treats_augmentation_failure_as_model_failure() -> (

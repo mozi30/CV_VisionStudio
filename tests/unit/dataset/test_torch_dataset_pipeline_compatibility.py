@@ -1,5 +1,6 @@
 """Tests for using plain PyTorch datasets in Vision Studio loaders."""
 
+import numpy as np
 import torch
 from torch.utils.data import Dataset
 
@@ -74,6 +75,28 @@ class _PlainSegmentationDataset(Dataset):
         return image, {"mask": mask}
 
 
+class _NumpyHwcDataset(Dataset):
+    """Dataset returning a NumPy HWC image."""
+
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, index: int):
+        image = np.full((4, 5, 3), 255, dtype=np.uint8)
+        return image, 0
+
+
+class _AmbiguousNumpyDataset(Dataset):
+    """Dataset returning a NumPy array that can be read as HWC or CHW."""
+
+    def __len__(self) -> int:
+        return 1
+
+    def __getitem__(self, index: int):
+        image = np.zeros((3, 4, 3), dtype=np.uint8)
+        return image, 0
+
+
 def test_simple_loader_normalizes_plain_torch_dataset_targets() -> None:
     """A normal PyTorch ``(input, label)`` dataset should produce target dicts."""
     loader = SimpleDataLoader(_PlainTorchDataset(), batch_size=2)
@@ -122,6 +145,50 @@ def test_simple_loader_batches_plain_segmentation_dataset() -> None:
     assert torch.equal(targets["mask"][1], torch.ones((4, 4), dtype=torch.long))
 
 
+def test_simple_loader_converts_numpy_hwc_images_to_chw_float_tensors() -> None:
+    loader = SimpleDataLoader(_NumpyHwcDataset(), batch_size=1)
+
+    inputs, targets = next(iter(loader))
+
+    assert inputs.shape == (1, 3, 4, 5)
+    assert inputs.dtype == torch.float32
+    assert torch.equal(inputs, torch.ones((1, 3, 4, 5)))
+    assert torch.equal(targets["label"], torch.tensor([0]))
+
+
+def test_simple_loader_rejects_non_positive_batch_size() -> None:
+    try:
+        SimpleDataLoader(_PlainTorchDataset(), batch_size=0)
+    except ValueError as exc:
+        assert "batch_size" in str(exc)
+    else:
+        raise AssertionError("Expected batch_size validation to fail.")
+
+
+def test_simple_loader_accepts_explicit_numpy_hwc_layout() -> None:
+    loader = SimpleDataLoader(
+        _AmbiguousNumpyDataset(),
+        batch_size=1,
+        numpy_layout="hwc",
+    )
+
+    inputs, _ = next(iter(loader))
+
+    assert inputs.shape == (1, 3, 3, 4)
+
+
+def test_simple_loader_accepts_explicit_numpy_chw_layout() -> None:
+    loader = SimpleDataLoader(
+        _AmbiguousNumpyDataset(),
+        batch_size=1,
+        numpy_layout="chw",
+    )
+
+    inputs, _ = next(iter(loader))
+
+    assert inputs.shape == (1, 3, 4, 3)
+
+
 def test_balanced_loader_infers_counts_from_plain_torch_dataset_labels() -> None:
     """BalancedDataLoader should not require Vision Studio metadata helpers."""
     loader = BalancedDataLoader(_PlainTorchDataset(), batch_size=2, shuffle=False)
@@ -132,3 +199,17 @@ def test_balanced_loader_infers_counts_from_plain_torch_dataset_labels() -> None
 
     assert inputs.shape == (2, 2)
     assert "label" in targets
+
+
+def test_balanced_loader_uses_numpy_layout_from_simple_loader() -> None:
+    loader = BalancedDataLoader(
+        _NumpyHwcDataset(),
+        batch_size=1,
+        shuffle=False,
+        numpy_layout="hwc",
+    )
+
+    inputs, targets = next(iter(loader))
+
+    assert inputs.shape == (1, 3, 4, 5)
+    assert torch.equal(targets["label"], torch.tensor([0]))

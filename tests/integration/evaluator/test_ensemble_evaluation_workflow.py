@@ -10,7 +10,7 @@ import torch
 from vision_studio.evaluate import ClassificationEvaluationMetrics, LoopEvaluator
 from vision_studio.inference.simple import EnsembleConfig
 from vision_studio.models.base import BaseModel
-from vision_studio.types import InputSpec, LossOutput, OutputSpec, PostprocessOutput
+from vision_studio.types import LossOutput, PostprocessOutput
 
 
 class _WorkflowModel(BaseModel):
@@ -18,14 +18,6 @@ class _WorkflowModel(BaseModel):
         super().__init__()
         self._logits = logits
         self._loss = loss
-
-    @property
-    def input_spec(self) -> InputSpec:
-        return {}
-
-    @property
-    def output_spec(self) -> OutputSpec:
-        return {}
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         return self._logits[: inputs.shape[0]].clone()

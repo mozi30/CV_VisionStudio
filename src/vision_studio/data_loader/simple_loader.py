@@ -1,17 +1,14 @@
 import random
 from collections.abc import Iterator
-from typing import Any, TypeVar
+from typing import Any
 
 import torch
-from PIL import Image
 from torch import Tensor
-from torchvision.transforms import functional as F
 
 from vision_studio.dataset import Dataset
+from vision_studio.utils import NumpyLayout, input_to_tensor
 
 from .base import DataLoader
-
-T = TypeVar("T")
 
 
 class SimpleDataLoader(DataLoader[tuple[Tensor, dict[str, Any]]]):
@@ -21,13 +18,19 @@ class SimpleDataLoader(DataLoader[tuple[Tensor, dict[str, Any]]]):
         dataset_percentage_per_epoch: int = 100,
         batch_size: int = 1,
         shuffle: bool = False,
+        numpy_layout: NumpyLayout = "auto",
     ):
         if not 1 <= dataset_percentage_per_epoch <= 100:
             raise ValueError("dataset_percentage_per_epoch must be between 1 and 100.")
+        if batch_size <= 0:
+            raise ValueError("batch_size must be greater than zero.")
+        if numpy_layout not in {"auto", "hwc", "chw"}:
+            raise ValueError("numpy_layout must be one of: 'auto', 'hwc', or 'chw'")
         self.dataset = dataset
         self.dataset_percentage_per_epoch = dataset_percentage_per_epoch
         self.batch_size = batch_size
         self.shuffle = shuffle
+        self.numpy_layout = numpy_layout
 
     def __iter__(self) -> Iterator[tuple[Tensor, dict[str, Any]]]:
         indices = list(range(len(self.dataset)))
@@ -96,12 +99,7 @@ class SimpleDataLoader(DataLoader[tuple[Tensor, dict[str, Any]]]):
         tensors: list[Tensor] = []
 
         for input_item in inputs:
-            if isinstance(input_item, Tensor):
-                tensors.append(input_item)
-            elif isinstance(input_item, Image.Image):
-                tensors.append(F.to_tensor(input_item))
-            else:
-                tensors.append(torch.as_tensor(input_item))
+            tensors.append(input_to_tensor(input_item, numpy_layout=self.numpy_layout))
 
         return torch.stack(tensors, dim=0)
 

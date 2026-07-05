@@ -8,10 +8,8 @@ from pathlib import Path
 from typing import Any
 
 import torch
-from PIL import Image
 from torch import Tensor
 from torch.optim import Optimizer
-from torchvision.transforms import functional
 
 from vision_studio.types import (
     CheckpointError,
@@ -20,6 +18,7 @@ from vision_studio.types import (
     EvaluatorOutput,
     TrainerSettings,
 )
+from vision_studio.utils import input_to_tensor, move_to_device
 
 Batch = tuple[Tensor, dict[str, Any]]
 
@@ -69,14 +68,7 @@ class Trainer(ABC):
 
         inputs = inputs.to(self.device)
 
-        moved_targets: dict[str, Any] = {}
-        for key, value in targets.items():
-            if isinstance(value, Tensor):
-                moved_targets[key] = value.to(self.device)
-            else:
-                moved_targets[key] = value
-
-        return inputs, moved_targets
+        return inputs, move_to_device(targets, self.device)
 
     def _is_collated_batch(self, batch: Any) -> bool:
         return (
@@ -96,12 +88,7 @@ class Trainer(ABC):
 
         collated_inputs: list[Tensor] = []
         for input_item in inputs:
-            if isinstance(input_item, Tensor):
-                collated_inputs.append(input_item)
-            elif isinstance(input_item, Image.Image):
-                collated_inputs.append(functional.to_tensor(input_item))
-            else:
-                collated_inputs.append(torch.as_tensor(input_item))
+            collated_inputs.append(input_to_tensor(input_item))
 
         batched_inputs = torch.stack(collated_inputs, dim=0)
         batched_targets: dict[str, Any] = {}

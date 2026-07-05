@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 from collections.abc import Iterable
 from typing import Any
 
@@ -48,28 +49,33 @@ class VisionTrainer(Trainer):
         model.to(self.device)
         history: dict[str, list[EvaluatorOutput]] = {"train": [], "evaluation": []}
 
-        for epoch in range(self.current_epoch, self.settings.epochs):
-            self.current_epoch = epoch
-            self.reporter.start()
-            train_metrics = self.train_epoch(model, train_loader)
-            history["train"].append(train_metrics)
-            self.reporter.log(
-                {"train/loss": train_metrics["loss"], "epoch": epoch},
-                step=self.global_step,
-            )
+        self.reporter.start()
+        try:
+            for epoch in range(self.current_epoch, self.settings.epochs):
+                self.current_epoch = epoch
+                train_metrics = self.train_epoch(model, train_loader)
+                history["train"].append(train_metrics)
+                self.reporter.log(
+                    {"train/loss": train_metrics["loss"], "epoch": epoch},
+                    step=self.global_step,
+                )
 
-            if chosen_evaluator is None or val_loader is None:
-                if chosen_evaluator is None:
-                    self.warn("No Evaluator configured; evaluation skipped.")
-                self.reporter.finish()
-                continue
+                if chosen_evaluator is None or val_loader is None:
+                    if chosen_evaluator is None:
+                        self.warn("No Evaluator configured; evaluation skipped.")
+                    continue
 
-            evaluation_metrics = chosen_evaluator.evaluate(model, val_loader)
-            history["evaluation"].append(evaluation_metrics)
-            self.reporter.log(
-                {"evaluation/loss": evaluation_metrics["loss"], "epoch": epoch},
-                step=self.global_step,
-            )
+                evaluation_metrics = self._evaluate_during_training(
+                    chosen_evaluator,
+                    model,
+                    val_loader,
+                )
+                history["evaluation"].append(evaluation_metrics)
+                self.reporter.log(
+                    {"evaluation/loss": evaluation_metrics["loss"], "epoch": epoch},
+                    step=self.global_step,
+                )
+        finally:
             self.reporter.finish()
 
         return {
@@ -78,6 +84,36 @@ class VisionTrainer(Trainer):
             "global_step": self.global_step,
             "warnings": self.warnings,
         }
+
+    def _evaluate_during_training(
+        self,
+        evaluator: Any,
+        model: BaseModel,
+        val_loader: Iterable[Batch],
+    ) -> EvaluatorOutput:
+        previous_device = getattr(evaluator, "device", None)
+        if previous_device is not None:
+            evaluator.device = self.device
+        try:
+            if self._accepts_manage_reporter(evaluator.evaluate):
+                return evaluator.evaluate(model, val_loader, manage_reporter=False)
+            return evaluator.evaluate(model, val_loader)
+        finally:
+            if previous_device is not None:
+                evaluator.device = previous_device
+
+    @staticmethod
+    def _accepts_manage_reporter(callable_obj: Any) -> bool:
+        try:
+            parameters = inspect.signature(callable_obj).parameters.values()
+        except (TypeError, ValueError):
+            return False
+
+        return any(
+            parameter.kind is inspect.Parameter.VAR_KEYWORD
+            or parameter.name == "manage_reporter"
+            for parameter in parameters
+        )
 
     def train_epoch(
         self,
