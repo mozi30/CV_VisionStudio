@@ -3,6 +3,7 @@
 import torch
 from torch.optim import SGD
 
+from vision_studio.evaluate import EvaluationMetrics
 from vision_studio.evaluate.evaluator import LoopEvaluator
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter
@@ -10,7 +11,7 @@ from vision_studio.trainer.trainer import VisionTrainer
 from vision_studio.types import TrainerSettings
 
 
-class _Metrics:
+class _Metrics(EvaluationMetrics):
     def reset(self) -> None:
         self.count = 0
 

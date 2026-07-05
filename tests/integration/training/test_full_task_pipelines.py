@@ -11,7 +11,11 @@ from torch.optim import SGD
 from torch.utils.data import Dataset
 
 from vision_studio.data_loader import SimpleDataLoader
-from vision_studio.evaluate import ClassificationEvaluationMetrics, LoopEvaluator
+from vision_studio.evaluate import (
+    ClassificationEvaluationMetrics,
+    EvaluationMetrics,
+    LoopEvaluator,
+)
 from vision_studio.models import ImageClassifier
 from vision_studio.models.base import BaseModel
 from vision_studio.trainer.trainer import VisionTrainer
@@ -132,7 +136,7 @@ class _DetectionModel(BaseModel):
         return {"loss": logits.mean() * 0.0 + self.score_bias.square()}
 
 
-class _DetectionPipelineMetrics:
+class _DetectionPipelineMetrics(EvaluationMetrics):
     def reset(self) -> None:
         self.loss_sum = 0.0
         self.loss_count = 0
@@ -193,7 +197,7 @@ class _SegmentationModel(BaseModel):
         return {"loss": torch.nn.functional.cross_entropy(logits, masks)}
 
 
-class _SegmentationPipelineMetrics:
+class _SegmentationPipelineMetrics(EvaluationMetrics):
     def reset(self) -> None:
         self.loss_sum = 0.0
         self.loss_count = 0

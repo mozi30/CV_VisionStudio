@@ -24,6 +24,8 @@ from vision_studio.reporting import BaseReporter, LoggingReporter
 from vision_studio.types import ConfigurationError, EvaluatorOutput
 from vision_studio.utils import move_to_device
 
+from .metrics import EvaluationMetrics
+
 Batch = tuple[Tensor, dict[str, Any]]
 
 
@@ -55,11 +57,13 @@ class LoopEvaluator(Evaluator):
 
     def __init__(
         self,
-        metrics: Any,
+        metrics: EvaluationMetrics,
         device: torch.device | str = "cpu",
         reporter: BaseReporter | None = None,
     ) -> None:
         """Create a loop evaluator for the provided metrics implementation."""
+        if not isinstance(metrics, EvaluationMetrics):
+            raise TypeError("metrics must implement EvaluationMetrics")
         self.metrics = metrics
         self.device = torch.device(device)
         self.reporter = reporter or LoggingReporter()

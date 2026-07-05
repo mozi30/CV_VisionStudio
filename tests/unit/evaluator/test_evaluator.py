@@ -5,6 +5,7 @@ from typing import Any
 
 import torch
 
+from vision_studio.evaluate import EvaluationMetrics
 from vision_studio.evaluate.evaluator import LoopEvaluator
 from vision_studio.models.base import BaseModel
 from vision_studio.reporting import BaseReporter
@@ -17,7 +18,7 @@ from vision_studio.types import (
 # ruff: noqa: D103
 
 
-class _StubMetrics:
+class _StubMetrics(EvaluationMetrics):
     def __init__(self) -> None:
         self.reset_called = False
         self.updates = 0
@@ -63,6 +64,18 @@ class _StubModel(BaseModel):
 def test_evaluation_error_is_exception() -> None:
     """EvaluationError should remain an exception subtype."""
     assert issubclass(EvaluationError, Exception)
+
+
+def test_loop_evaluator_requires_evaluation_metrics_interface() -> None:
+    class _InvalidMetrics:
+        pass
+
+    try:
+        LoopEvaluator(metrics=_InvalidMetrics())
+    except TypeError as exc:
+        assert "EvaluationMetrics" in str(exc)
+    else:
+        raise AssertionError("Expected LoopEvaluator metrics validation to fail.")
 
 
 def test_loop_evaluator_resets_updates_and_computes_metrics() -> None:
