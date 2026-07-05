@@ -12,6 +12,7 @@ from torch.utils.data import Dataset
 
 from vision_studio.data_loader import SimpleDataLoader
 from vision_studio.evaluate import ClassificationEvaluationMetrics, LoopEvaluator
+from vision_studio.models import ImageClassifier
 from vision_studio.models.base import BaseModel
 from vision_studio.trainer.trainer import VisionTrainer
 from vision_studio.types import TrainerSettings
@@ -241,6 +242,35 @@ def test_full_classification_pipeline_runs_on_available_device(device: torch.dev
     assert "accuracy" in result["history"]["evaluation"][0]
     _assert_devices(model.seen_input_devices, device)
     _assert_devices(model.seen_target_devices, device)
+
+
+@pytest.mark.parametrize("device", [_pipeline_device()])
+def test_full_image_classifier_pipeline_runs_on_available_device(device: torch.device):
+    model = ImageClassifier(in_channels=3, num_classes=2)
+    optimizer = SGD(model.parameters(), lr=0.01)
+    loader = SimpleDataLoader(
+        _ClassificationDataset(),
+        batch_size=2,
+        shuffle=False,
+        numpy_layout="hwc",
+    )
+    evaluator = LoopEvaluator(
+        ClassificationEvaluationMetrics(num_classes=2, topk=(1,)),
+        device=device,
+    )
+    trainer = VisionTrainer(
+        optimizer=optimizer,
+        evaluator=evaluator,
+        device=device,
+        settings=_trainer_settings(),
+    )
+
+    result = trainer.fit(model, loader, loader)
+
+    assert result["global_step"] == 1
+    assert len(result["history"]["train"]) == 1
+    assert len(result["history"]["evaluation"]) == 1
+    assert "accuracy" in result["history"]["evaluation"][0]
 
 
 @pytest.mark.parametrize("device", [_pipeline_device()])

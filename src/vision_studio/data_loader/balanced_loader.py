@@ -9,6 +9,7 @@ from typing import Any
 from torch import Tensor
 
 from vision_studio.dataset import Dataset
+from vision_studio.utils import NumpyLayout
 
 from .simple_loader import SimpleDataLoader
 
@@ -25,6 +26,7 @@ class BalancedDataLoader(SimpleDataLoader):
         dataset: Dataset,
         batch_size: int = 1,
         shuffle: bool = True,
+        numpy_layout: NumpyLayout = "auto",
     ):
         """Initialize balanced data loader.
 
@@ -32,6 +34,7 @@ class BalancedDataLoader(SimpleDataLoader):
                 dataset: Dataset with get_class_sample_counts() method.
                 batch_size: Number of samples per batch.
                 shuffle: Whether to shuffle samples within each epoch.
+                numpy_layout: NumPy image layout handling: "auto", "hwc", or "chw".
 
         """
         super().__init__(
@@ -39,6 +42,7 @@ class BalancedDataLoader(SimpleDataLoader):
             dataset_percentage_per_epoch=100,
             batch_size=batch_size,
             shuffle=shuffle,
+            numpy_layout=numpy_layout,
         )
 
         class_counts = self._get_class_sample_counts()
